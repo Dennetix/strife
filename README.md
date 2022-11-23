@@ -1,0 +1,2 @@
+# strife
+Native Discord client
