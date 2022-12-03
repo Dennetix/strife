@@ -1,70 +1,103 @@
 use iced::{
-    alignment::Vertical,
-    widget::{button, column, container, text},
+    alignment::Horizontal,
+    widget::{button, column, container, horizontal_rule, scrollable, svg, text, vertical_space},
     Element, Length,
 };
+use iced_graphics::Renderer;
 use iced_lazy::Component;
 
-use crate::gui::theme::Container;
+use crate::gui::theme::{Button, Container, Rule, Theme};
 
-#[derive(Debug, Clone)]
-pub enum GuildbarEntry {
-    SwitchTheme,
+#[derive(Debug, Clone, PartialEq)]
+pub enum View {
+    PrivateChannels,
+    Settings,
 }
 
 pub fn guildbar<Message>(
-    on_select: impl Fn(GuildbarEntry) -> Message + 'static,
+    active_view: View,
+    on_select: impl Fn(View) -> Message + 'static,
 ) -> Guildbar<Message> {
-    Guildbar::new(on_select)
+    Guildbar::new(active_view, on_select)
 }
 
 #[derive(Debug, Clone)]
 pub enum GuildbarEvent {
-    SwitchThemeClicked,
+    PrivateChannelsPressed,
+    SettingsPressed,
 }
 
 pub struct Guildbar<Message> {
-    on_select: Box<dyn Fn(GuildbarEntry) -> Message>,
+    active_view: View,
+    on_select: Box<dyn Fn(View) -> Message>,
 }
 
 impl<Message> Guildbar<Message> {
-    fn new(on_select: impl Fn(GuildbarEntry) -> Message + 'static) -> Self {
+    fn new(active_view: View, on_select: impl Fn(View) -> Message + 'static) -> Self {
         Self {
+            active_view,
             on_select: Box::new(on_select),
         }
     }
 }
 
-impl<Message, Renderer> Component<Message, Renderer> for Guildbar<Message>
+impl<Message, Backend> Component<Message, Renderer<Backend, Theme>> for Guildbar<Message>
 where
-    Renderer: iced_native::text::Renderer + 'static,
-    Renderer::Theme: button::StyleSheet + text::StyleSheet + container::StyleSheet,
-    <Renderer::Theme as container::StyleSheet>::Style: From<Container>,
+    Backend: iced_graphics::Backend + iced_graphics::backend::Svg + 'static,
 {
     type State = ();
     type Event = GuildbarEvent;
 
-    fn update(&mut self, _state: &mut Self::State, _event: Self::Event) -> Option<Message> {
-        Some((self.on_select)(GuildbarEntry::SwitchTheme))
+    fn update(&mut self, _state: &mut Self::State, event: Self::Event) -> Option<Message> {
+        match event {
+            GuildbarEvent::PrivateChannelsPressed => Some((self.on_select)(View::PrivateChannels)),
+            GuildbarEvent::SettingsPressed => Some((self.on_select)(View::Settings)),
+        }
     }
 
-    fn view(&self, _state: &Self::State) -> iced_native::Element<'_, Self::Event, Renderer> {
-        let settings = button(text("Switch")).on_press(GuildbarEvent::SwitchThemeClicked);
-
-        container(column![settings])
+    fn view(&self, _state: &Self::State) -> Element<'_, Self::Event, Renderer<Backend, Theme>> {
+        let guilds = scrollable(vertical_space(Length::Units(1000)))
+            .style((2.5, true))
             .height(Length::Fill)
-            .align_y(Vertical::Bottom)
-            .style(Container::BackgroundContrast2)
-            .into()
+            .scrollbar_width(5)
+            .scroller_width(5);
+
+        let settings_button = button(svg(svg::Handle::from_path(format!(
+            "{}/res/icons/settings.svg",
+            env!("CARGO_MANIFEST_DIR")
+        ))))
+        .style(Button::TransparentHover(
+            self.active_view == View::Settings,
+            Some(17.5),
+        ))
+        .width(Length::Units(35))
+        .height(Length::Units(35))
+        .padding(6)
+        .on_press(GuildbarEvent::SettingsPressed);
+
+        container(
+            column![
+                guilds,
+                horizontal_rule(2).style(Rule::Width(2, 60.0)),
+                container(settings_button)
+                    .width(Length::Fill)
+                    .align_x(Horizontal::Center)
+            ]
+            .spacing(10),
+        )
+        .style(Container::BackgroundStrong2)
+        .width(Length::Units(75))
+        .height(Length::Fill)
+        .padding(10)
+        .into()
     }
 }
 
-impl<'a, Message, Renderer> From<Guildbar<Message>> for Element<'a, Message, Renderer>
+impl<'a, Message, Backend> From<Guildbar<Message>>
+    for Element<'a, Message, Renderer<Backend, Theme>>
 where
     Message: 'a,
-    Renderer: iced_native::text::Renderer + 'static,
-    Renderer::Theme: text::StyleSheet + container::StyleSheet + button::StyleSheet,
-    <Renderer::Theme as container::StyleSheet>::Style: From<Container>,
+    Backend: iced_graphics::Backend + iced_graphics::backend::Svg + 'static,
 {
     fn from(guildbar: Guildbar<Message>) -> Self {
         iced_lazy::component(guildbar)
