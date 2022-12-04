@@ -51,7 +51,7 @@ where
                 container(vertical_space(Length::Shrink))
                     .style(Container::Color(
                         Color::from(self.theme.theme.background_strong2),
-                        10.0,
+                        9.0,
                     ))
                     .width(Length::Units(40))
                     .height(Length::Fill),
@@ -68,14 +68,14 @@ where
             ])
             .style(Container::Color(
                 Color::from(self.theme.theme.background),
-                11.0,
+                9.0,
             ))
             .width(Length::Fill)
             .height(Length::Fill),
         )
-        .style(Button::TransparentBorder(self.selected, Some(15.0), 5.0))
-        .width(Length::Units(180))
-        .height(Length::Units(110))
+        .style(Button::Border(self.selected, Some(15.0), 5.0))
+        .width(Length::Units(160))
+        .height(Length::Units(95))
         .padding(5)
         .on_press(())
         .into()
@@ -112,5 +112,5 @@ where
     .style(Container::BackgroundWeak(20.0))
     .padding(12);
 
-    column![text("Theme"), default_themes].spacing(10).into()
+    column![text("Theme"), default_themes].spacing(15).into()
 }

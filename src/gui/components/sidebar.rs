@@ -149,13 +149,12 @@ where
                 .spacing(5)
                 .padding([15, 13, 15, 10]),
         )
-        .style((2.5, false))
         .scrollbar_margin(5)
         .scrollbar_width(5)
         .scroller_width(5);
 
         container(scrollable)
-            .style(Container::BackgroundStrong1)
+            .style(Container::BackgroundStrong1(0.0))
             .width(Length::Units(230))
             .height(Length::Fill)
             .into()

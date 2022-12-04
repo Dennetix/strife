@@ -16,8 +16,11 @@ pub fn config_path() -> Option<PathBuf> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename = "camelCase")]
 pub struct Settings {
     pub theme: String,
+    pub active_account: String,
+    pub accounts: Vec<String>,
 }
 
 impl Settings {
@@ -58,6 +61,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             theme: ThemeData::dark().id,
+            active_account: String::from(""),
+            accounts: vec![],
         }
     }
 }

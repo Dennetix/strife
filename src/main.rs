@@ -1,5 +1,6 @@
+mod api;
+mod data;
 mod gui;
-mod settings;
 
 use anyhow::{Context, Result};
 use iced::{window, Application, Settings};

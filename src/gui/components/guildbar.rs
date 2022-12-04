@@ -1,12 +1,15 @@
 use iced::{
     alignment::Horizontal,
-    widget::{button, column, container, horizontal_rule, scrollable, svg, text, vertical_space},
+    widget::{button, column, container, horizontal_rule, scrollable, svg, vertical_space},
     Element, Length,
 };
 use iced_graphics::Renderer;
 use iced_lazy::Component;
 
-use crate::gui::theme::{Button, Container, Rule, Theme};
+use crate::gui::{
+    icons,
+    theme::{Button, Container, Rule, Scrollable, Theme},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum View {
@@ -57,23 +60,20 @@ where
 
     fn view(&self, _state: &Self::State) -> Element<'_, Self::Event, Renderer<Backend, Theme>> {
         let guilds = scrollable(vertical_space(Length::Units(1000)))
-            .style((2.5, true))
+            .style(Scrollable::Weak)
             .height(Length::Fill)
             .scrollbar_width(5)
             .scroller_width(5);
 
-        let settings_button = button(svg(svg::Handle::from_path(format!(
-            "{}/res/icons/settings.svg",
-            env!("CARGO_MANIFEST_DIR")
-        ))))
-        .style(Button::TransparentHover(
-            self.active_view == View::Settings,
-            Some(17.5),
-        ))
-        .width(Length::Units(35))
-        .height(Length::Units(35))
-        .padding(6)
-        .on_press(GuildbarEvent::SettingsPressed);
+        let settings_button = button(svg(icons::SETTINGS.clone()))
+            .style(Button::TransparentHover(
+                self.active_view == View::Settings,
+                Some(17.5),
+            ))
+            .width(Length::Units(35))
+            .height(Length::Units(35))
+            .padding(6)
+            .on_press(GuildbarEvent::SettingsPressed);
 
         container(
             column![
@@ -85,7 +85,7 @@ where
             ]
             .spacing(10),
         )
-        .style(Container::BackgroundStrong2)
+        .style(Container::BackgroundStrong2(0.0))
         .width(Length::Units(75))
         .height(Length::Fill)
         .padding(10)

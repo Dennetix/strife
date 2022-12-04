@@ -1,38 +1,45 @@
-pub mod components;
-pub mod message;
 pub mod theme;
-pub mod views;
 
-use std::sync::Arc;
+mod components;
+mod icons;
+mod message;
+mod views;
 
 use iced::{executor, widget::text, Application, Command, Element, Renderer};
 use iced_native::row;
 use tracing::error;
 
-use crate::settings::Settings;
+use crate::{
+    api::cdn_client::CdnClient,
+    data::{settings::Settings, user::User},
+};
 
 use self::{
     components::guildbar::{guildbar, View},
-    message::Message,
+    message::{map_result_message, Message},
     theme::{
         data::{DefaultThemes, ThemeData},
         Theme,
     },
-    views::settings::{settings_view, SettingsViewMessage},
+    views::settings::{settings_view, AccountsMessage, SettingsViewMessage},
 };
 
-pub fn map_result_message<T, Message>(
-    f: impl FnOnce(Result<T, Arc<anyhow::Error>>) -> Message + 'static,
-) -> impl FnOnce(anyhow::Result<T>) -> Message + 'static {
-    |r| match r {
-        Ok(t) => f(Ok(t)),
-        Err(e) => f(Err(Arc::new(e))),
-    }
-}
+const SERVICE: &str = "strife_accounts";
 
 pub struct App {
-    settings: Settings,
     active_view: View,
+    settings: Settings,
+    accounts: Vec<User>,
+    cdn_client: CdnClient,
+}
+
+impl App {
+    fn save_settings(&self) -> Command<Message> {
+        Command::perform(
+            self.settings.clone().save(),
+            map_result_message(Message::SettingsSaved),
+        )
+    }
 }
 
 impl Application for App {
@@ -44,8 +51,10 @@ impl Application for App {
     fn new(_flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         (
             Self {
-                settings: Settings::default(),
                 active_view: View::Settings,
+                settings: Settings::default(),
+                accounts: vec![],
+                cdn_client: CdnClient::new(),
             },
             Command::perform(Settings::load(), Message::SettingsLoaded),
         )
@@ -57,22 +66,92 @@ impl Application for App {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::SettingsLoaded(settings) => self.settings = settings,
+            Message::SettingsLoaded(settings) => {
+                self.settings = settings;
+                let accounts = self.settings.accounts.drain(..);
+                return Command::batch(
+                    accounts
+                        .filter_map(|id| keyring::Entry::new(SERVICE, &id).get_password().ok())
+                        .map(|token| {
+                            Command::perform(
+                                User::from_token(token),
+                                map_result_message(|user| Message::AccountLoaded(user, None)),
+                            )
+                        }),
+                );
+            }
             Message::SettingsSaved(res) => {
                 if let Err(e) = res {
                     error!("Failed to save settings, {e}");
                 }
             }
+            Message::AccountLoaded(user, token) => match user {
+                Ok(user) => {
+                    let (id, avatar) = (user.id.clone(), user.avatar.clone());
+
+                    if let None = self.settings.accounts.iter().find(|a| **a == id) {
+                        if let Some(token) = token {
+                            if let Err(e) = keyring::Entry::new(SERVICE, &id).set_password(&token) {
+                                error!("Failed to save account token to keyring: {e}");
+                            }
+                        }
+
+                        self.accounts.push(user);
+                        self.settings.accounts.push(id.clone());
+
+                        return Command::batch([
+                            self.save_settings(),
+                            if let Some(avatar) = avatar {
+                                Command::perform(
+                                    self.cdn_client.clone().avatar(id.clone(), avatar, 128),
+                                    map_result_message(|handle| {
+                                        Message::AccountAvatarLoaded(id, handle)
+                                    }),
+                                )
+                            } else {
+                                Command::none()
+                            },
+                        ]);
+                    }
+                }
+                Err(e) => error!("Failed to load account: {e}"),
+            },
+            Message::AccountAvatarLoaded(id, handle) => {
+                if let Some(user) = self.accounts.iter_mut().find(|u| u.id == id) {
+                    match handle {
+                        Ok(handle) => user.avatar_handle = Some(handle),
+                        Err(e) => error!("Failed to load user avatar: {e}"),
+                    }
+                }
+            }
+
             Message::ViewSelect(view) => self.active_view = view,
 
             Message::SettingsViewMessage(message) => match message {
                 SettingsViewMessage::SettingsChanged(settings) => {
-                    self.settings = settings.clone();
-                    return Command::perform(
-                        settings.save(),
-                        map_result_message(Message::SettingsSaved),
-                    );
+                    self.settings = settings;
+                    return self.save_settings();
                 }
+                SettingsViewMessage::AccountsMessage(message) => match message {
+                    AccountsMessage::AccountAdded(token) => {
+                        return Command::perform(
+                            User::from_token(token.clone()),
+                            map_result_message(|user| Message::AccountLoaded(user, Some(token))),
+                        )
+                    }
+                    AccountsMessage::AccountSelected(id) => {
+                        self.settings.active_account = id;
+                        return self.save_settings();
+                    }
+                    AccountsMessage::AccountRemoved(id) => {
+                        if self.settings.active_account == id {
+                            self.settings.active_account.clear();
+                        }
+                        self.settings.accounts.retain(|a| *a != id);
+                        self.accounts.retain(|a| a.id != id);
+                        return self.save_settings();
+                    }
+                },
             },
         }
 
@@ -82,7 +161,9 @@ impl Application for App {
     fn view(&self) -> Element<'_, Self::Message, Renderer<Self::Theme>> {
         let view: Element<'_, Self::Message, Renderer<Self::Theme>> = match self.active_view {
             View::PrivateChannels => text("Private Channels").into(),
-            View::Settings => settings_view(&self.settings, Message::SettingsViewMessage).into(),
+            View::Settings => {
+                settings_view(&self.settings, &self.accounts, Message::SettingsViewMessage).into()
+            }
         };
 
         row![

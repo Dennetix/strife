@@ -5,7 +5,7 @@ use iced::{
     widget::{
         button, container,
         rule::{self, FillMode},
-        text,
+        text, text_input,
     },
     Background, Color,
 };
@@ -39,7 +39,7 @@ pub enum Button {
     TransparentHover(bool, Option<f32>),
 
     /// selected, border radius, border width
-    TransparentBorder(bool, Option<f32>, f32),
+    Border(bool, Option<f32>, f32),
 }
 
 impl button::StyleSheet for Theme {
@@ -47,8 +47,8 @@ impl button::StyleSheet for Theme {
 
     fn active(&self, style: &Self::Style) -> button::Appearance {
         let mut appearance = button::Appearance {
-            text_color: Color::from(self.data.theme.button.text),
-            border_radius: self.data.theme.button.border_radius,
+            text_color: Color::from(self.data.theme.text),
+            border_radius: self.data.theme.border_radius,
             ..Default::default()
         };
 
@@ -69,7 +69,10 @@ impl button::StyleSheet for Theme {
                     self.data.theme.button.transparent_pressed,
                 )));
             }
-            Button::TransparentBorder(selected, border_radius, border_width) => {
+            Button::Border(selected, border_radius, border_width) => {
+                appearance.background = Some(Background::Color(Color::from(
+                    self.data.theme.background_weak,
+                )));
                 appearance.border_width = *border_width;
                 if let Some(border_radius) = border_radius {
                     appearance.border_radius = *border_radius;
@@ -86,8 +89,8 @@ impl button::StyleSheet for Theme {
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         let mut appearance = button::Appearance {
-            text_color: Color::from(self.data.theme.button.text),
-            border_radius: self.data.theme.button.border_radius,
+            text_color: Color::from(self.data.theme.text),
+            border_radius: self.data.theme.border_radius,
             ..Default::default()
         };
 
@@ -110,7 +113,10 @@ impl button::StyleSheet for Theme {
                     self.data.theme.button.transparent_hover,
                 )));
             }
-            Button::TransparentBorder(selected, border_radius, border_width) => {
+            Button::Border(selected, border_radius, border_width) => {
+                appearance.background = Some(Background::Color(Color::from(
+                    self.data.theme.background_weak,
+                )));
                 appearance.border_width = *border_width;
                 if let Some(border_radius) = border_radius {
                     appearance.border_radius = *border_radius;
@@ -128,7 +134,8 @@ impl button::StyleSheet for Theme {
 
     fn pressed(&self, style: &Self::Style) -> button::Appearance {
         let mut appearance = button::Appearance {
-            text_color: Color::from(self.data.theme.button.text),
+            text_color: Color::from(self.data.theme.text),
+            border_radius: self.data.theme.border_radius,
             ..Default::default()
         };
 
@@ -151,7 +158,10 @@ impl button::StyleSheet for Theme {
                     self.data.theme.button.transparent_pressed,
                 )));
             }
-            Button::TransparentBorder(_, border_radius, border_width) => {
+            Button::Border(_, border_radius, border_width) => {
+                appearance.background = Some(Background::Color(Color::from(
+                    self.data.theme.background_weak,
+                )));
                 appearance.border_width = *border_width;
                 if let Some(border_radius) = border_radius {
                     appearance.border_radius = *border_radius;
@@ -165,7 +175,8 @@ impl button::StyleSheet for Theme {
 
     fn disabled(&self, _style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            border_radius: 2.0,
+            text_color: Color::from(self.data.theme.text_weak),
+            border_radius: self.data.theme.border_radius,
             background: Some(Background::Color(Color::from(
                 self.data.theme.button.disabled,
             ))),
@@ -179,9 +190,11 @@ pub enum Container {
     #[default]
     Transparent,
     Background,
-    BackgroundStrong1,
-    BackgroundStrong2,
 
+    /// border radius
+    BackgroundStrong1(f32),
+    /// border radius
+    BackgroundStrong2(f32),
     /// border radius
     BackgroundWeak(f32),
 
@@ -200,12 +213,14 @@ impl container::StyleSheet for Theme {
                 appearance.background =
                     Some(Background::Color(Color::from(self.data.theme.background)));
             }
-            Container::BackgroundStrong1 => {
+            Container::BackgroundStrong1(border_radius) => {
+                appearance.border_radius = *border_radius;
                 appearance.background = Some(Background::Color(Color::from(
                     self.data.theme.background_strong1,
                 )));
             }
-            Container::BackgroundStrong2 => {
+            Container::BackgroundStrong2(border_radius) => {
+                appearance.border_radius = *border_radius;
                 appearance.background = Some(Background::Color(Color::from(
                     self.data.theme.background_strong2,
                 )));
@@ -257,26 +272,35 @@ impl rule::StyleSheet for Theme {
     }
 }
 
+#[derive(Default)]
+pub enum Scrollable {
+    #[default]
+    Default,
+    Weak,
+}
+
 impl scrollable::StyleSheet for Theme {
-    type Style = (f32, bool);
+    type Style = Scrollable;
 
     fn active(&self, style: &Self::Style) -> scrollable::style::Scrollbar {
-        scrollable::style::Scrollbar {
+        let mut appearance = scrollable::style::Scrollbar {
             background: None,
             border_radius: 0.0,
             border_width: 0.0,
             border_color: Color::TRANSPARENT,
             scroller: scrollable::style::Scroller {
-                color: Color::from(if style.1 {
-                    self.data.theme.background
-                } else {
-                    self.data.theme.background_strong2
-                }),
-                border_radius: style.0,
+                color: Color::from(self.data.theme.background_strong2),
+                border_radius: 50.0,
                 border_width: 0.0,
                 border_color: Color::TRANSPARENT,
             },
+        };
+
+        if let Scrollable::Weak = style {
+            appearance.scroller.color = Color::from(self.data.theme.background);
         }
+
+        appearance
     }
 
     fn hovered(&self, style: &Self::Style) -> scrollable::style::Scrollbar {
@@ -288,6 +312,7 @@ impl scrollable::StyleSheet for Theme {
 pub enum Text {
     #[default]
     Default,
+    Weak,
     Color(Color),
 }
 
@@ -297,7 +322,48 @@ impl text::StyleSheet for Theme {
     fn appearance(&self, style: Self::Style) -> text::Appearance {
         match style {
             Text::Default => Default::default(),
+            Text::Weak => text::Appearance {
+                color: Some(Color::from(self.data.theme.text_weak)),
+            },
             Text::Color(color) => text::Appearance { color: Some(color) },
         }
+    }
+}
+
+impl text_input::StyleSheet for Theme {
+    type Style = ();
+
+    fn active(&self, _style: &Self::Style) -> text_input::Appearance {
+        text_input::Appearance {
+            background: Background::Color(Color::from(self.data.theme.background_weak)),
+            border_radius: self.data.theme.border_radius,
+            border_width: 1.0,
+            border_color: Color::from(self.data.theme.secondary),
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> text_input::Appearance {
+        self.active(style)
+    }
+
+    fn focused(&self, _style: &Self::Style) -> text_input::Appearance {
+        text_input::Appearance {
+            background: Background::Color(Color::from(self.data.theme.background_weak)),
+            border_radius: self.data.theme.border_radius,
+            border_width: 1.0,
+            border_color: Color::from(self.data.theme.primary),
+        }
+    }
+
+    fn placeholder_color(&self, _style: &Self::Style) -> Color {
+        Color::from(self.data.theme.text_weak)
+    }
+
+    fn value_color(&self, _style: &Self::Style) -> Color {
+        Color::from(self.data.theme.text)
+    }
+
+    fn selection_color(&self, _style: &Self::Style) -> Color {
+        Color::from(self.data.theme.text_selection)
     }
 }
