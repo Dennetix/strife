@@ -14,68 +14,29 @@ pub enum SidebarEntryType<T: Clone + PartialEq> {
     Spacer,
 }
 
-struct SidebarEntry<'a, T: Clone + PartialEq, Message> {
+fn sidebar_entry<'a, T, Backend>(
     selected: bool,
-    entry_type: &'a SidebarEntryType<T>,
-    on_press: Box<dyn Fn(SidebarEntryType<T>) -> Message>,
-}
-
-impl<'a, T: Clone + PartialEq, Message> SidebarEntry<'a, T, Message> {
-    fn new(
-        selected: bool,
-        entry_type: &'a SidebarEntryType<T>,
-        on_press: impl Fn(SidebarEntryType<T>) -> Message + 'static,
-    ) -> Self {
-        Self {
-            selected,
-            entry_type,
-            on_press: Box::new(on_press),
-        }
-    }
-}
-
-impl<'a, T, Message, Backend> Component<Message, Renderer<Backend, Theme>>
-    for SidebarEntry<'a, T, Message>
-where
-    T: Clone + PartialEq,
-    Backend: iced_graphics::Backend + iced_graphics::backend::Text + 'static,
-{
-    type State = ();
-    type Event = ();
-
-    fn update(&mut self, _state: &mut Self::State, _event: Self::Event) -> Option<Message> {
-        Some((self.on_press)(self.entry_type.clone()))
-    }
-
-    fn view(&self, _state: &Self::State) -> Element<'_, Self::Event, Renderer<Backend, Theme>> {
-        let content = match &self.entry_type {
-            SidebarEntryType::Button(_, label) => text(label),
-            SidebarEntryType::Spacer => return horizontal_rule(15).into(),
-        };
-
-        button(
-            container(content)
-                .height(Length::Units(20))
-                .align_y(Vertical::Center),
-        )
-        .style(Button::TransparentHover(self.selected, Some(5.0)))
-        .width(Length::Fill)
-        .padding(10)
-        .on_press(())
-        .into()
-    }
-}
-
-impl<'a, T, Message, Backend> From<SidebarEntry<'a, T, Message>>
-    for Element<'a, Message, Renderer<Backend, Theme>>
+    entry_type: &SidebarEntryType<T>,
+) -> Element<'a, SidebarEntryType<T>, Renderer<Backend, Theme>>
 where
     T: Clone + PartialEq + 'a,
-    Message: 'a,
     Backend: iced_graphics::Backend + iced_graphics::backend::Text + 'static,
 {
-    fn from(sidebar_entry: SidebarEntry<'a, T, Message>) -> Self {
-        iced_lazy::component(sidebar_entry)
-    }
+    let content = match entry_type {
+        SidebarEntryType::Button(_, label) => text(label),
+        SidebarEntryType::Spacer => return horizontal_rule(15).into(),
+    };
+
+    button(
+        container(content)
+            .height(Length::Units(20))
+            .align_y(Vertical::Center),
+    )
+    .style(Button::TransparentHover(selected, Some(5.0)))
+    .width(Length::Fill)
+    .padding(10)
+    .on_press(entry_type.clone())
+    .into()
 }
 
 pub fn sidebar<T: Clone + PartialEq, Message>(
@@ -139,7 +100,7 @@ where
                         false
                     }
                 };
-                SidebarEntry::new(selected, entry, |e| e).into()
+                sidebar_entry(selected, entry).into()
             })
             .collect();
 

@@ -28,8 +28,8 @@ const SERVICE: &str = "strife_accounts";
 
 pub struct App {
     connection_state: ConnectionState,
-    active_view: View,
     settings: Settings,
+    active_view: View,
     accounts: Vec<User>,
     cdn_client: CdnClient,
 }
@@ -53,8 +53,8 @@ impl Application for App {
         (
             Self {
                 connection_state: ConnectionState::Disconnected,
-                active_view: View::Settings,
                 settings: Settings::default(),
+                active_view: View::Settings,
                 accounts: vec![],
                 cdn_client: CdnClient::new(),
             },

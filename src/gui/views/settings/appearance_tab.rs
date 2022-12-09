@@ -4,7 +4,6 @@ use iced::{
     Color, Element, Length,
 };
 use iced_graphics::Renderer;
-use iced_lazy::Component;
 use iced_native::{column, row};
 
 use crate::gui::theme::{
@@ -14,83 +13,43 @@ use crate::gui::theme::{
 
 use super::Event;
 
-struct ThemeButton<Message> {
+fn theme_button<'a, Backend>(
     selected: bool,
     theme: ThemeData,
-    on_press: Box<dyn Fn(String) -> Message>,
-}
-
-impl<Message> ThemeButton<Message> {
-    fn new(
-        selected: bool,
-        theme: ThemeData,
-        on_press: impl Fn(String) -> Message + 'static,
-    ) -> Self {
-        Self {
-            selected,
-            theme,
-            on_press: Box::new(on_press),
-        }
-    }
-}
-
-impl<Message, Backend> Component<Message, Renderer<Backend, Theme>> for ThemeButton<Message>
+) -> Element<'a, Event, Renderer<Backend, Theme>>
 where
     Backend: iced_graphics::Backend + iced_graphics::backend::Text + 'static,
 {
-    type State = ();
-    type Event = ();
-
-    fn update(&mut self, _state: &mut Self::State, _event: Self::Event) -> Option<Message> {
-        Some((self.on_press)(self.theme.id.clone()))
-    }
-
-    fn view(&self, _state: &Self::State) -> Element<'_, Self::Event, Renderer<Backend, Theme>> {
-        button(
-            container(row![
-                container(vertical_space(Length::Shrink))
-                    .style(Container::Color(
-                        Color::from(self.theme.theme.background_strong2),
-                        9.0,
-                    ))
-                    .width(Length::Units(40))
-                    .height(Length::Fill),
-                container(
-                    text(self.theme.name.clone())
-                        .style(Text::Color(Color::from(self.theme.theme.text)))
-                        .size(18)
-                )
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .padding([5, 10, 10, 10])
-                .align_x(Horizontal::Center)
-                .align_y(Vertical::Center)
-            ])
+    let content = container(row![
+        container(vertical_space(Length::Shrink))
             .style(Container::Color(
-                Color::from(self.theme.theme.background),
+                Color::from(theme.theme.background_strong2),
                 9.0,
             ))
-            .width(Length::Fill)
+            .width(Length::Units(40))
             .height(Length::Fill),
+        container(
+            text(theme.name.clone())
+                .style(Text::Color(Color::from(theme.theme.text)))
+                .size(18)
         )
-        .style(Button::Border(self.selected, Some(15.0), 5.0))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding([5, 10, 10, 10])
+        .align_x(Horizontal::Center)
+        .align_y(Vertical::Center)
+    ])
+    .style(Container::Color(Color::from(theme.theme.background), 9.0))
+    .width(Length::Fill)
+    .height(Length::Fill);
+
+    button(content)
+        .style(Button::Border(selected, Some(15.0), 5.0))
         .width(Length::Units(160))
         .height(Length::Units(95))
         .padding(5)
-        .on_press(())
+        .on_press(Event::ThemeSelected(theme.id))
         .into()
-    }
-}
-
-impl<'a, Message, Backend> From<ThemeButton<Message>>
-    for Element<'a, Message, Renderer<Backend, Theme>>
-where
-    Message: 'a,
-    Backend: iced_graphics::Backend + iced_graphics::backend::Text + 'static,
-{
-    fn from(button: ThemeButton<Message>) -> Self {
-        iced_lazy::component(button)
-    }
 }
 
 pub fn appearance_tab<'a, Backend>(
@@ -104,8 +63,8 @@ where
 
     let default_themes = container(
         row![
-            ThemeButton::new(dark.id == active_theme, dark, Event::ThemeSelected),
-            ThemeButton::new(light.id == active_theme, light, Event::ThemeSelected)
+            theme_button(dark.id == active_theme, dark),
+            theme_button(light.id == active_theme, light)
         ]
         .spacing(5),
     )
