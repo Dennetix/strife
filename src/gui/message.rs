@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use iced::widget::image;
 
-use crate::data::{settings::Settings, user::User};
+use crate::{
+    api::gateway::Gateway,
+    data::{settings::Settings, state::State, user::User},
+};
 
 use super::{components::guildbar::View, views::settings::SettingsViewMessage};
 
@@ -23,6 +26,7 @@ pub enum Message {
     SettingsSaved(Result<()>),
     AccountLoaded(Result<User>, Option<String>),
     AccountAvatarLoaded(String, Result<image::Handle>),
+    Connected(Result<(Gateway, State)>),
 
     ViewSelect(View),
 

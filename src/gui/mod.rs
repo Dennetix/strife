@@ -10,8 +10,8 @@ use iced_native::row;
 use tracing::error;
 
 use crate::{
-    api::cdn_client::CdnClient,
-    data::{settings::Settings, user::User},
+    api::{cdn_client::CdnClient, gateway::Gateway},
+    data::{settings::Settings, state::ConnectionState, user::User},
 };
 
 use self::{
@@ -27,6 +27,7 @@ use self::{
 const SERVICE: &str = "strife_accounts";
 
 pub struct App {
+    connection_state: ConnectionState,
     active_view: View,
     settings: Settings,
     accounts: Vec<User>,
@@ -51,6 +52,7 @@ impl Application for App {
     fn new(_flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         (
             Self {
+                connection_state: ConnectionState::Disconnected,
                 active_view: View::Settings,
                 settings: Settings::default(),
                 accounts: vec![],
@@ -69,16 +71,36 @@ impl Application for App {
             Message::SettingsLoaded(settings) => {
                 self.settings = settings;
                 let accounts = self.settings.accounts.drain(..);
-                return Command::batch(
-                    accounts
-                        .filter_map(|id| keyring::Entry::new(SERVICE, &id).get_password().ok())
-                        .map(|token| {
-                            Command::perform(
-                                User::from_token(token),
-                                map_result_message(|user| Message::AccountLoaded(user, None)),
-                            )
-                        }),
-                );
+
+                // Load all connected accounts
+                let mut commands = accounts
+                    .filter_map(|id| keyring::Entry::new(SERVICE, &id).get_password().ok())
+                    .map(|token| {
+                        Command::perform(
+                            User::from_token(token),
+                            map_result_message(|user| Message::AccountLoaded(user, None)),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                // Connect the gateway to the last active account
+                if self.settings.active_account.len() > 0 {
+                    if let Ok(token) =
+                        keyring::Entry::new(SERVICE, &self.settings.active_account).get_password()
+                    {
+                        self.connection_state = ConnectionState::Connecting;
+
+                        commands.push(Command::perform(
+                            Gateway::new(token),
+                            map_result_message(Message::Connected),
+                        ));
+                    } else {
+                        self.connection_state = ConnectionState::Disconnected;
+                        error!("Keyring did not contain the token of the selected account");
+                    }
+                }
+
+                return Command::batch(commands);
             }
             Message::SettingsSaved(res) => {
                 if let Err(e) = res {
@@ -124,6 +146,15 @@ impl Application for App {
                     }
                 }
             }
+            Message::Connected(res) => match res {
+                Ok((gateway, state)) => {
+                    self.connection_state = ConnectionState::Connecetd(state, gateway)
+                }
+                Err(e) => {
+                    self.connection_state = ConnectionState::Disconnected;
+                    error!("Failed to connect to gateway: {e}");
+                }
+            },
 
             Message::ViewSelect(view) => self.active_view = view,
 
@@ -140,12 +171,36 @@ impl Application for App {
                         )
                     }
                     AccountsMessage::AccountSelected(id) => {
-                        self.settings.active_account = id;
-                        return self.save_settings();
+                        if let ConnectionState::Connecetd(_, gateway) = &mut self.connection_state {
+                            gateway.close();
+                        }
+
+                        if let Ok(token) = keyring::Entry::new(SERVICE, &id).get_password() {
+                            self.settings.active_account = id;
+                            self.connection_state = ConnectionState::Connecting;
+
+                            return Command::batch([
+                                self.save_settings(),
+                                Command::perform(
+                                    Gateway::new(token),
+                                    map_result_message(Message::Connected),
+                                ),
+                            ]);
+                        } else {
+                            self.connection_state = ConnectionState::Disconnected;
+                            error!("Keyring did not contain the token of the selected account");
+                        }
                     }
                     AccountsMessage::AccountRemoved(id) => {
                         if self.settings.active_account == id {
                             self.settings.active_account.clear();
+
+                            if let ConnectionState::Connecetd(_, gateway) =
+                                &mut self.connection_state
+                            {
+                                gateway.close();
+                                self.connection_state = ConnectionState::Disconnected;
+                            }
                         }
                         self.settings.accounts.retain(|a| *a != id);
                         self.accounts.retain(|a| a.id != id);

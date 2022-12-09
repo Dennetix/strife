@@ -56,8 +56,8 @@ pub struct Theme {
 impl DefaultThemes for Theme {
     fn dark() -> Self {
         Self {
-            text: [1.0, 1.0, 1.0],
-            text_weak: [0.7, 0.7, 0.7],
+            text: [0.9, 0.9, 0.9],
+            text_weak: [0.65, 0.65, 0.65],
             text_selection: [0.4, 0.7, 1.0],
             spacer: [1.0, 1.0, 1.0, 0.05],
             primary: [0.2, 0.5, 1.0],
@@ -82,7 +82,7 @@ impl DefaultThemes for Theme {
             background: [1.0, 1.0, 1.0],
             background_strong1: [0.87, 0.87, 0.87],
             background_strong2: [0.78, 0.78, 0.78],
-            background_weak: [0.85, 0.85, 0.85],
+            background_weak: [0.9, 0.9, 0.9],
             border_radius: 5.0,
             button: Button::light(),
         }
@@ -114,8 +114,8 @@ impl DefaultThemes for Button {
             primary_pressed: [0.05, 0.35, 0.85],
             secondary_hovered: [0.35, 0.35, 0.35],
             secondary_pressed: [0.3, 0.3, 0.3],
-            transparent_hover: [1.0, 1.0, 1.0, 0.05],
-            transparent_pressed: [1.0, 1.0, 1.0, 0.07],
+            transparent_hover: [1.0, 1.0, 1.0, 0.02],
+            transparent_pressed: [1.0, 1.0, 1.0, 0.04],
             disabled: [0.4, 0.4, 0.4],
         }
     }

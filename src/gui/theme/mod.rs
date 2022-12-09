@@ -5,7 +5,7 @@ use iced::{
     widget::{
         button, container,
         rule::{self, FillMode},
-        text, text_input,
+        svg, text, text_input,
     },
     Background, Color,
 };
@@ -305,6 +305,26 @@ impl scrollable::StyleSheet for Theme {
 
     fn hovered(&self, style: &Self::Style) -> scrollable::style::Scrollbar {
         self.active(style)
+    }
+}
+
+#[derive(Default)]
+pub enum Svg {
+    #[default]
+    Default,
+    Weak,
+}
+
+impl svg::StyleSheet for Theme {
+    type Style = Svg;
+
+    fn appearance(&self, style: &Self::Style) -> svg::Appearance {
+        svg::Appearance {
+            color: match style {
+                Svg::Default => Some(Color::from(self.data.theme.text)),
+                Svg::Weak => Some(Color::from(self.data.theme.text_weak)),
+            },
+        }
     }
 }
 
