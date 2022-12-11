@@ -24,3 +24,15 @@ pub fn identify_payload(token: &str) -> String {
     })
     .to_string()
 }
+
+pub fn resume_payload(token: &str, session_id: &str, sequence: u32) -> String {
+    json!({
+        "op": 6,
+        "d": {
+            "token": token,
+            "session_id": session_id,
+            "seq": sequence
+        }
+    })
+    .to_string()
+}

@@ -17,4 +17,6 @@ pub struct GatewayMessage {
 #[derive(Debug, Clone, Deserialize)]
 pub struct GatewayReadyData {
     pub user: User,
+    pub resume_gateway_url: String,
+    pub session_id: String,
 }
