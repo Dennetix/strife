@@ -5,12 +5,15 @@ mod icons;
 mod message;
 mod views;
 
-use iced::{executor, widget::text, Application, Command, Element, Renderer};
+use iced::{executor, widget::text, Application, Command, Element, Renderer, Subscription};
 use iced_native::row;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
-    api::{cdn_client::CdnClient, gateway::Gateway},
+    api::{
+        cdn_client::CdnClient,
+        gateway::{Gateway, GatewayEvent},
+    },
     data::{settings::Settings, state::ConnectionState, user::User},
 };
 
@@ -156,6 +159,24 @@ impl Application for App {
                 }
             },
 
+            Message::GatewayEvent(event) => match event {
+                GatewayEvent::ReconnectNeeded => {
+                    if let Ok(token) =
+                        keyring::Entry::new(SERVICE, &self.settings.active_account).get_password()
+                    {
+                        self.connection_state = ConnectionState::Connecting;
+                        return Command::perform(
+                            Gateway::new(token),
+                            map_result_message(Message::Connected),
+                        );
+                    } else {
+                        self.connection_state = ConnectionState::Disconnected;
+                        error!("Keyring did not contain the token of the selected account");
+                    }
+                }
+                GatewayEvent::Message(msg) => info!("Message: {msg:?}"),
+            },
+
             Message::ViewSelect(view) => self.active_view = view,
 
             Message::SettingsViewMessage(message) => match message {
@@ -211,6 +232,14 @@ impl Application for App {
         }
 
         Command::none()
+    }
+
+    fn subscription(&self) -> Subscription<Self::Message> {
+        if let ConnectionState::Connecetd(_, gateway) = &self.connection_state {
+            gateway.subscribe().map(Message::GatewayEvent)
+        } else {
+            Subscription::none()
+        }
     }
 
     fn view(&self) -> Element<'_, Self::Message, Renderer<Self::Theme>> {

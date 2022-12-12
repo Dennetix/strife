@@ -15,8 +15,17 @@ pub struct GatewayMessage {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct GatewayReadyData {
+pub struct DispatchReady {
     pub user: User,
     pub resume_gateway_url: String,
     pub session_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DispatchMessage {
+    pub id: String,
+    pub channel_id: String,
+    pub content: String,
+    pub timestamp: String,
+    pub edited_timestamp: Option<String>,
 }

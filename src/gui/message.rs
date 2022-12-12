@@ -3,7 +3,7 @@ use std::sync::Arc;
 use iced::widget::image;
 
 use crate::{
-    api::gateway::Gateway,
+    api::gateway::{Gateway, GatewayEvent},
     data::{settings::Settings, state::State, user::User},
 };
 
@@ -27,6 +27,8 @@ pub enum Message {
     AccountLoaded(Result<User>, Option<String>),
     AccountAvatarLoaded(String, Result<image::Handle>),
     Connected(Result<(Gateway, State)>),
+
+    GatewayEvent(GatewayEvent),
 
     ViewSelect(View),
 

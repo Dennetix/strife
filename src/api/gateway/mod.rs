@@ -15,13 +15,12 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
+use iced::{subscription, Subscription};
 use once_cell::sync::OnceCell;
+use serde_json::Value;
 use tokio::{
     net::TcpStream,
-    sync::{
-        oneshot::{self, Sender},
-        Mutex, RwLock,
-    },
+    sync::{mpsc, oneshot, Mutex, RwLock},
     time,
 };
 use tokio_tungstenite::{
@@ -33,10 +32,13 @@ use tokio_tungstenite::{
 };
 use tracing::{error, info, warn};
 
-use crate::{api::gateway::payloads::identify_payload, data::state::State};
+use crate::{
+    api::gateway::{data::DispatchMessage, payloads::identify_payload},
+    data::state::State,
+};
 
 use self::{
-    data::{GatewayMessage, GatewayReadyData},
+    data::{DispatchReady, GatewayMessage},
     payloads::{heartbeat_payload, resume_payload},
 };
 
@@ -55,6 +57,12 @@ pub enum GatewayState {
 }
 
 #[derive(Debug, Clone)]
+pub enum GatewayEvent {
+    ReconnectNeeded,
+    Message(DispatchMessage),
+}
+
+#[derive(Debug, Clone)]
 pub struct Gateway {
     inner: Arc<GatewayInner>,
 }
@@ -69,7 +77,9 @@ pub struct GatewayInner {
     resume_url: OnceCell<String>,
     session_id: OnceCell<String>,
 
-    ready_sender: Mutex<Option<Sender<Result<State>>>>,
+    event_sender: mpsc::Sender<GatewayEvent>,
+    event_receiver: Mutex<mpsc::Receiver<GatewayEvent>>,
+    ready_sender: Mutex<Option<oneshot::Sender<Result<State>>>>,
 }
 
 impl Gateway {
@@ -79,6 +89,7 @@ impl Gateway {
 
         info!("Connected to Gateway");
 
+        let (event_sender, event_receiver) = mpsc::channel::<GatewayEvent>(10);
         let (ready_sender, ready_receiver) = oneshot::channel::<Result<State>>();
 
         let this = Self {
@@ -92,6 +103,8 @@ impl Gateway {
                 session_id: OnceCell::new(),
 
                 ready_sender: Mutex::new(Some(ready_sender)),
+                event_sender,
+                event_receiver: Mutex::new(event_receiver),
             }),
         };
 
@@ -144,7 +157,7 @@ impl Gateway {
         }
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         let this = self.clone();
         tokio::spawn(async move {
             this.set_state(GatewayState::Closed).await;
@@ -161,12 +174,19 @@ impl Gateway {
                 })))
                 .await;
 
+            this.inner.event_receiver.lock().await.close();
+
             if let Some(sender) = this.inner.ready_sender.lock().await.take() {
                 let _ = sender.send(Err(anyhow!("Gateway closed")));
             }
-
-            info!("Gateway closed");
         });
+    }
+
+    pub fn subscribe(&self) -> Subscription<GatewayEvent> {
+        subscription::unfold(self.inner.token.clone(), self.clone(), |this| async move {
+            let event = this.inner.event_receiver.lock().await.recv().await;
+            (event, this)
+        })
     }
 
     fn receive(&self, read: WSStream) {
@@ -182,8 +202,8 @@ impl Gateway {
                             }
                         }
                         Message::Close(close) => {
+                            info!("Gateway was closed");
                             if let GatewayState::Open = this.get_state().await {
-                                info!("Gateway was closed");
                                 let should_resume = if let Some(CloseFrame { code, .. }) = close {
                                     let code: u16 = code.into();
                                     if code == 4004 || (code >= 4010 && code <= 4014) {
@@ -198,6 +218,16 @@ impl Gateway {
                                 if should_resume {
                                     if let Err(e) = this.resume().await {
                                         error!("Failed to resume gateway: {e}");
+                                    }
+                                } else {
+                                    this.close();
+                                    if let Err(e) = this
+                                        .inner
+                                        .event_sender
+                                        .send(GatewayEvent::ReconnectNeeded)
+                                        .await
+                                    {
+                                        error!("Failed to send gateway event: {e}");
                                     }
                                 }
                             }
@@ -228,36 +258,7 @@ impl Gateway {
                     .as_ref()
                     .ok_or(anyhow!("Gateway dispatch did not include type"))?;
 
-                match kind.as_str() {
-                    "READY" => {
-                        let data = serde_json::from_value::<GatewayReadyData>(msg.data)?;
-
-                        self.inner
-                            .resume_url
-                            .set(data.resume_gateway_url)
-                            .map_err(|_| anyhow!("Could not set resume_gateway_url"))?;
-                        self.inner
-                            .session_id
-                            .set(data.session_id)
-                            .map_err(|_| anyhow!("Could not set session_id"))?;
-
-                        self.set_state(GatewayState::Open).await;
-
-                        if let Some(sender) = self.inner.ready_sender.lock().await.take() {
-                            if let Err(_) = sender.send(Ok(State { user: data.user })) {
-                                error!("Failed to send ready oneshot");
-                            }
-                        }
-                    }
-                    "RESUMED" => {
-                        info!("Session successfully resumed");
-
-                        self.set_state(GatewayState::Open).await;
-                    }
-                    msg_type => {
-                        warn!("Unhandled gateway dispatch type {msg_type}")
-                    }
-                }
+                self.process_dispatch(&kind, msg.data).await?;
             }
             // Heartbeat request
             1 => {
@@ -267,6 +268,14 @@ impl Gateway {
             }
             // Reconnect
             7 => self.inner.write.lock().await.close().await?,
+            // Invalid Session
+            9 => {
+                self.close();
+                self.inner
+                    .event_sender
+                    .send(GatewayEvent::ReconnectNeeded)
+                    .await?;
+            }
             // Hello
             10 => {
                 // Heartbeat
@@ -308,6 +317,47 @@ impl Gateway {
             // Heartbeat response
             11 => {}
             op => warn!("Unhandled gateway opcode {op}: {msg:?}"),
+        }
+
+        Ok(())
+    }
+
+    async fn process_dispatch(&self, kind: &str, data: Value) -> Result<()> {
+        match kind {
+            "READY" => {
+                let data = serde_json::from_value::<DispatchReady>(data)?;
+
+                self.inner
+                    .resume_url
+                    .set(data.resume_gateway_url)
+                    .map_err(|_| anyhow!("Could not set resume_gateway_url"))?;
+                self.inner
+                    .session_id
+                    .set(data.session_id)
+                    .map_err(|_| anyhow!("Could not set session_id"))?;
+
+                self.set_state(GatewayState::Open).await;
+
+                if let Some(sender) = self.inner.ready_sender.lock().await.take() {
+                    if let Err(_) = sender.send(Ok(State { user: data.user })) {
+                        error!("Failed to send ready oneshot");
+                    }
+                }
+            }
+            "RESUMED" => {
+                info!("Session successfully resumed");
+                self.set_state(GatewayState::Open).await;
+            }
+            "MESSAGE_CREATE" | "MESSAGE_UPDATE" => {
+                let data = serde_json::from_value::<DispatchMessage>(data)?;
+                self.inner
+                    .event_sender
+                    .send(GatewayEvent::Message(data))
+                    .await?;
+            }
+            msg_type => {
+                warn!("Unhandled gateway dispatch type {msg_type}")
+            }
         }
 
         Ok(())
