@@ -7,6 +7,6 @@ pub static DM: Lazy<svg::Handle> =
     Lazy::new(|| svg::Handle::from_path(format!("{}/dm.svg", *PATH)));
 pub static SETTINGS: Lazy<svg::Handle> =
     Lazy::new(|| svg::Handle::from_path(format!("{}/settings.svg", *PATH)));
-pub static USER: Lazy<svg::Handle> =
-    Lazy::new(|| svg::Handle::from_path(format!("{}/user.svg", *PATH)));
+pub static USERS: Lazy<svg::Handle> =
+    Lazy::new(|| svg::Handle::from_path(format!("{}/users.svg", *PATH)));
 pub static X: Lazy<svg::Handle> = Lazy::new(|| svg::Handle::from_path(format!("{}/x.svg", *PATH)));

@@ -34,6 +34,7 @@ pub enum AppMessage {
     GatewayEvent(GatewayEvent),
 
     UserAvatarLoaded(String, Result<image::Handle>),
+    GroupIconLoaded(String, Result<image::Handle>),
 
     ViewSelect(View),
 

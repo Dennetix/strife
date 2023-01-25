@@ -28,4 +28,38 @@ impl CdnClient {
 
         Ok(image::Handle::from_memory(data.to_vec()))
     }
+
+    pub async fn default_avatar(self, discriminator: u16) -> Result<image::Handle> {
+        let data = self
+            .client
+            .get(format!(
+                "{CDN_BASE_URL}/embed/avatars/{}.png?size=16",
+                discriminator % 5
+            ))
+            .send()
+            .await?
+            .bytes()
+            .await?;
+
+        Ok(image::Handle::from_memory(data.to_vec()))
+    }
+
+    pub async fn channel_icon(
+        self,
+        channel_id: String,
+        icon: String,
+        size: u16,
+    ) -> Result<image::Handle> {
+        let data = self
+            .client
+            .get(format!(
+                "{CDN_BASE_URL}/channel-icons/{channel_id}/{icon}.png?size={size}"
+            ))
+            .send()
+            .await?
+            .bytes()
+            .await?;
+
+        Ok(image::Handle::from_memory(data.to_vec()))
+    }
 }

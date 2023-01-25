@@ -119,7 +119,11 @@ impl Application for App {
             }
             AppMessage::AccountLoaded(user, token) => match user {
                 Ok(user) => {
-                    let (id, avatar) = (user.id.clone(), user.avatar.clone());
+                    let (id, discriminator, avatar) = (
+                        user.id.clone(),
+                        user.discriminator.clone(),
+                        user.avatar.clone(),
+                    );
 
                     if let None = self.settings.accounts.iter().find(|a| **a == id) {
                         if let Some(token) = token {
@@ -135,13 +139,18 @@ impl Application for App {
                             self.save_settings(),
                             if let Some(avatar) = avatar {
                                 Command::perform(
-                                    self.cdn_client.clone().avatar(id.clone(), avatar, 128),
+                                    self.cdn_client.clone().avatar(id.clone(), avatar, 64),
                                     map_result_message(|handle| {
                                         AppMessage::AccountAvatarLoaded(id, handle)
                                     }),
                                 )
                             } else {
-                                Command::none()
+                                Command::perform(
+                                    self.cdn_client.clone().default_avatar(discriminator),
+                                    map_result_message(|handle| {
+                                        AppMessage::AccountAvatarLoaded(id, handle)
+                                    }),
+                                )
                             },
                         ]);
                     }
@@ -160,19 +169,40 @@ impl Application for App {
                 Ok((gateway, state)) => {
                     self.connection_state = ConnectionState::Connecetd(state.clone(), gateway);
 
-                    // Load user avatars
-                    return Command::batch(state.user_cache.into_iter().flat_map(|(_, user)| {
+                    // Create commands to load user avatars
+                    let user_commands = state.user_cache.into_iter().map(|(_, user)| {
                         if let Some(avatar) = user.avatar {
-                            Some(Command::perform(
-                                self.cdn_client.clone().avatar(user.id.clone(), avatar, 128),
+                            Command::perform(
+                                self.cdn_client.clone().avatar(user.id.clone(), avatar, 64),
                                 map_result_message(|handle| {
                                     AppMessage::UserAvatarLoaded(user.id, handle)
+                                }),
+                            )
+                        } else {
+                            Command::perform(
+                                self.cdn_client.clone().default_avatar(user.discriminator),
+                                map_result_message(|handle| {
+                                    AppMessage::UserAvatarLoaded(user.id, handle)
+                                }),
+                            )
+                        }
+                    });
+
+                    // Create commands to load group icons
+                    let group_commands = state.private_channels.into_iter().flat_map(|c| {
+                        if let Some(icon) = c.icon {
+                            Some(Command::perform(
+                                self.cdn_client.clone().channel_icon(c.id.clone(), icon, 64),
+                                map_result_message(|handle| {
+                                    AppMessage::GroupIconLoaded(c.id, handle)
                                 }),
                             ))
                         } else {
                             None
                         }
-                    }));
+                    });
+
+                    return Command::batch(user_commands.chain(group_commands));
                 }
                 Err(e) => {
                     self.connection_state = ConnectionState::Disconnected;
@@ -218,6 +248,18 @@ impl Application for App {
                     }
                 }
                 Err(e) => error!("Failed to load user avatar: {e}"),
+            },
+            AppMessage::GroupIconLoaded(id, handle) => match handle {
+                Ok(handle) => {
+                    if let ConnectionState::Connecetd(state, _) = &mut self.connection_state {
+                        if let Some(channel) =
+                            state.private_channels.iter_mut().find(|c| c.id == id)
+                        {
+                            channel.icon_handle = Some(handle);
+                        }
+                    }
+                }
+                Err(e) => error!("Failed to load group icon: {e}"),
             },
 
             AppMessage::ViewSelect(view) => {

@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use iced::widget::image;
+
 use crate::api::gateway::Gateway;
 
 use super::user::User;
@@ -15,6 +17,7 @@ pub enum ConnectionState {
 pub struct State {
     pub current_user: User,
     pub relationships: Vec<Relationship>,
+    pub private_channels: Vec<PrivateChannel>,
     pub user_cache: HashMap<String, User>,
     pub message_cache: HashMap<String, Vec<Message>>,
 }
@@ -23,11 +26,13 @@ impl State {
     pub fn new(
         current_user: User,
         relationships: Vec<Relationship>,
+        private_channels: Vec<PrivateChannel>,
         user_cache: HashMap<String, User>,
     ) -> Self {
         State {
             current_user,
             relationships,
+            private_channels,
             user_cache,
             message_cache: HashMap::with_capacity(50),
         }
@@ -64,4 +69,27 @@ pub enum RelationshipKind {
 pub struct Relationship {
     pub id: String,
     pub kind: RelationshipKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum PrivateChannelKind {
+    DirectMessage,
+    Group,
+}
+
+#[derive(Debug, Clone)]
+pub struct PrivateChannel {
+    pub id: String,
+    pub kind: PrivateChannelKind,
+    pub recipients: Vec<String>,
+    pub owner_id: Option<String>,
+    pub name: Option<String>,
+    pub icon: Option<String>,
+    pub icon_handle: Option<image::Handle>,
+}
+
+impl PartialEq for PrivateChannel {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }

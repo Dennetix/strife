@@ -10,7 +10,7 @@ use iced_native::{column, row};
 use crate::{
     data::user::User,
     gui::{
-        components::{empty, user_avatar},
+        components::{empty, images::user_avatar},
         icons,
         theme::{Button, Text, Theme},
     },

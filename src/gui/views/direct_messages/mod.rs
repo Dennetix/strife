@@ -1,10 +1,10 @@
 use iced::Element;
 use iced_graphics::Renderer;
-use iced_lazy::{lazy, Component};
+use iced_lazy::Component;
 use iced_native::row;
 
 use crate::{
-    data::state::{RelationshipKind, State},
+    data::state::{PrivateChannelKind, State},
     gui::{
         components::sidebar::{sidebar, SidebarEntryType},
         theme::Theme,
@@ -76,26 +76,28 @@ where
         &self,
         _state: &Self::State,
     ) -> iced_native::Element<'_, Self::Event, Renderer<Backend, Theme>> {
-        let sidebar = lazy(self.state.relationships.len(), |_| {
-            sidebar(
-                &self
-                    .state
-                    .relationships
-                    .iter()
-                    .flat_map(|r| match r.kind {
-                        RelationshipKind::Friend => {
-                            if let Some(user) = self.state.user_cache.get(&r.id) {
-                                Some(SidebarEntryType::User(user.clone()))
-                            } else {
-                                None
-                            }
+        let sidebar = sidebar(
+            &self
+                .state
+                .private_channels
+                .iter()
+                .flat_map(|c| match c.kind {
+                    PrivateChannelKind::DirectMessage => {
+                        if let Some(user) = self
+                            .state
+                            .user_cache
+                            .get(c.recipients.first().unwrap_or(&String::from("")))
+                        {
+                            Some(SidebarEntryType::User(user.clone()))
+                        } else {
+                            None
                         }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>(),
-                Event::ChannelSelected,
-            )
-        });
+                    }
+                    PrivateChannelKind::Group => Some(SidebarEntryType::Group(c.clone())),
+                })
+                .collect::<Vec<_>>(),
+            Event::ChannelSelected,
+        );
 
         row![sidebar].into()
     }

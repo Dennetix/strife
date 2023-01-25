@@ -8,15 +8,17 @@ use iced_graphics::Renderer;
 use iced_lazy::Component;
 use iced_native::row;
 
+use crate::data::state::PrivateChannel;
 use crate::data::user::User;
 use crate::gui::theme::{Button, Container, Theme};
 
-use super::user_avatar;
+use super::images::{channel_icon, user_avatar};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SidebarEntryType<T: Clone + PartialEq> {
     Button(T, String),
     User(User),
+    Group(PrivateChannel),
     Spacer,
 }
 
@@ -36,11 +38,28 @@ where
         SidebarEntryType::Button(_, label) => container(text(label))
             .height(Length::Units(20))
             .align_y(Vertical::Center),
-        SidebarEntryType::User(user) => {
-            container(row![user_avatar(user, 25), text(user.username.clone())].spacing(10))
-                .height(Length::Units(25))
-                .align_y(Vertical::Center)
-        }
+        SidebarEntryType::User(user) => container(
+            row![
+                user_avatar(user, 25),
+                text(format!("{:?} {}", user.presence, user.username))
+            ]
+            .spacing(10),
+        )
+        .height(Length::Units(25))
+        .align_y(Vertical::Center),
+        SidebarEntryType::Group(channel) => container(
+            row![
+                channel_icon(channel.icon_handle.clone(), 25),
+                text(if let Some(name) = &channel.name {
+                    name.clone()
+                } else {
+                    format!("{} Members", channel.recipients.len())
+                })
+            ]
+            .spacing(10),
+        )
+        .height(Length::Units(25))
+        .align_y(Vertical::Center),
         SidebarEntryType::Spacer => return horizontal_rule(15).into(),
     };
 

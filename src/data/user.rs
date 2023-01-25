@@ -1,6 +1,9 @@
 use anyhow::Result;
 use iced_native::image;
-use serde::Deserialize;
+use serde::{
+    de::{self, DeserializeOwned},
+    Deserialize, Deserializer,
+};
 
 use crate::api::rest_client::REST_BASE_URL;
 
@@ -10,11 +13,20 @@ pub const DEFAULT_ACCENT_COLOR: u32 = 5793266;
 pub struct User {
     pub id: String,
     pub username: String,
-    pub discriminator: String,
+    #[serde(deserialize_with = "str_to_u16")]
+    pub discriminator: u16,
     pub accent_color: Option<u32>,
     pub avatar: Option<String>,
     #[serde(skip)]
     pub avatar_handle: Option<image::Handle>,
+    #[serde(skip)]
+    pub presence: Presence,
+}
+
+fn str_to_u16<'a, D: Deserializer<'a>>(deserializer: D) -> Result<u16, D::Error> {
+    String::deserialize(deserializer)?
+        .parse()
+        .map_err(de::Error::custom)
 }
 
 impl User {
@@ -35,4 +47,13 @@ impl PartialEq for User {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
+}
+
+#[derive(Default, Debug, Clone)]
+pub enum Presence {
+    #[default]
+    Offline,
+    Online,
+    Idle,
+    DoNotDisturb,
 }
