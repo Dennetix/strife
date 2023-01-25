@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     components::guildbar::View,
-    views::{direct_messages::DirectMessagesViewMessage, settings::SettingsViewMessage},
+    views::{private_channels::PrivateChannelsViewMessage, settings::SettingsViewMessage},
 };
 
 pub type Result<T> = core::result::Result<T, Arc<anyhow::Error>>;
@@ -39,5 +39,5 @@ pub enum AppMessage {
     ViewSelect(View),
 
     SettingsViewMessage(SettingsViewMessage),
-    DirectMessagesViewMessage(DirectMessagesViewMessage),
+    DirectMessagesViewMessage(PrivateChannelsViewMessage),
 }

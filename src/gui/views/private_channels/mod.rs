@@ -11,20 +11,20 @@ use crate::{
     },
 };
 
-pub fn direct_messages_view<'a, Message>(
+pub fn private_channels_view<'a, Message>(
     state: &'a State,
-    on_message: impl Fn(DirectMessagesViewMessage) -> Message + 'static,
-) -> DirectMessagesView<'a, Message> {
-    DirectMessagesView::new(state, on_message)
+    on_message: impl Fn(PrivateChannelsViewMessage) -> Message + 'static,
+) -> PrivateChannelsView<'a, Message> {
+    PrivateChannelsView::new(state, on_message)
 }
 
 #[derive(Debug, Clone)]
-pub enum DirectMessagesViewMessage {
+pub enum PrivateChannelsViewMessage {
     Default,
 }
 
 #[derive(Default)]
-pub struct DirectMessagesState {
+pub struct PrivateChannelsState {
     active_channel: String,
 }
 
@@ -33,15 +33,15 @@ pub enum Event {
     ChannelSelected(SidebarEntryType<String>),
 }
 
-pub struct DirectMessagesView<'a, Message> {
+pub struct PrivateChannelsView<'a, Message> {
     state: &'a State,
-    on_message: Box<dyn Fn(DirectMessagesViewMessage) -> Message>,
+    on_message: Box<dyn Fn(PrivateChannelsViewMessage) -> Message>,
 }
 
-impl<'a, Message> DirectMessagesView<'a, Message> {
+impl<'a, Message> PrivateChannelsView<'a, Message> {
     fn new(
         state: &'a State,
-        on_message: impl Fn(DirectMessagesViewMessage) -> Message + 'static,
+        on_message: impl Fn(PrivateChannelsViewMessage) -> Message + 'static,
     ) -> Self {
         Self {
             state,
@@ -51,7 +51,7 @@ impl<'a, Message> DirectMessagesView<'a, Message> {
 }
 
 impl<'a, Message, Backend> Component<Message, Renderer<Backend, Theme>>
-    for DirectMessagesView<'a, Message>
+    for PrivateChannelsView<'a, Message>
 where
     Backend: iced_graphics::Backend
         + iced_graphics::backend::Text
@@ -59,7 +59,7 @@ where
         + iced_graphics::backend::Svg
         + 'static,
 {
-    type State = DirectMessagesState;
+    type State = PrivateChannelsState;
     type Event = Event;
 
     fn update(&mut self, state: &mut Self::State, event: Self::Event) -> Option<Message> {
@@ -103,7 +103,7 @@ where
     }
 }
 
-impl<'a, Message, Backend> From<DirectMessagesView<'a, Message>>
+impl<'a, Message, Backend> From<PrivateChannelsView<'a, Message>>
     for Element<'a, Message, Renderer<Backend, Theme>>
 where
     Message: 'a,
@@ -113,7 +113,7 @@ where
         + iced_graphics::backend::Svg
         + 'static,
 {
-    fn from(direct_messages_view: DirectMessagesView<'a, Message>) -> Self {
+    fn from(direct_messages_view: PrivateChannelsView<'a, Message>) -> Self {
         iced_lazy::component(direct_messages_view)
     }
 }

@@ -60,7 +60,7 @@ where
     }
 
     fn view(&self, _state: &Self::State) -> Element<'_, Self::Event, Renderer<Backend, Theme>> {
-        let dm_button = button(svg(icons::DM.clone()))
+        let private_channels_button = button(svg(icons::PRIVATE_CHANNELS.clone()))
             .style(Button::Primary(Some(15.0)))
             .width(Length::Units(51))
             .height(Length::Units(51))
@@ -69,7 +69,7 @@ where
 
         let guilds = scrollable(
             column![
-                dm_button,
+                private_channels_button,
                 horizontal_rule(2).style(Rule::Width(2, 60.0)),
                 vertical_space(Length::Units(750))
             ]

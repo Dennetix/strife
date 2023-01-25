@@ -7,8 +7,6 @@ use serde::{
 
 use crate::api::rest_client::REST_BASE_URL;
 
-pub const DEFAULT_ACCENT_COLOR: u32 = 5793266;
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct User {
     pub id: String,

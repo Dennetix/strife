@@ -1,2 +1,2 @@
-pub mod direct_messages;
+pub mod private_channels;
 pub mod settings;

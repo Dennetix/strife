@@ -29,7 +29,7 @@ use self::{
         Theme,
     },
     views::{
-        direct_messages::direct_messages_view,
+        private_channels::private_channels_view,
         settings::{settings_view, AccountsMessage, SettingsViewMessage},
     },
 };
@@ -342,7 +342,7 @@ impl Application for App {
         let view: Element<'_, Self::Message, Renderer<Self::Theme>> = match self.active_view {
             View::DirectMessages => {
                 if let ConnectionState::Connecetd(state, _) = &self.connection_state {
-                    direct_messages_view(state, AppMessage::DirectMessagesViewMessage).into()
+                    private_channels_view(state, AppMessage::DirectMessagesViewMessage).into()
                 } else {
                     text("This should never be seen").into()
                 }
