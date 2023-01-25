@@ -1,10 +1,7 @@
 use iced::{
     alignment::Vertical,
-    color,
-    widget::{
-        button, container, horizontal_rule, horizontal_space, image, svg, text, text_input, Column,
-    },
-    Color, Element, Length,
+    widget::{button, container, horizontal_rule, horizontal_space, svg, text, text_input, Column},
+    Element, Length,
 };
 use iced_graphics::Renderer;
 use iced_lazy::Component;
@@ -13,9 +10,9 @@ use iced_native::{column, row};
 use crate::{
     data::user::User,
     gui::{
-        components::empty,
+        components::{empty, user_avatar},
         icons,
-        theme::{Button, Container, Text, Theme},
+        theme::{Button, Text, Theme},
     },
 };
 
@@ -30,27 +27,6 @@ where
         + iced_graphics::backend::Svg
         + 'static,
 {
-    let image: Element<'a, Event, Renderer<Backend, Theme>> =
-        if let Some(handle) = &account.avatar_handle {
-            image(handle.clone()).into()
-        } else {
-            container(
-                svg(icons::USER.clone())
-                    .width(Length::Fill)
-                    .height(Length::Fill),
-            )
-            .style(Container::Color(color!(account.accent_color), 20.0))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(6)
-            .into()
-        };
-
-    let avatar = container(image)
-        .style(Container::Color(Color::TRANSPARENT, 20.0))
-        .width(Length::Units(40))
-        .height(Length::Units(40));
-
     let content = {
         let remove_button = button(svg(icons::X.clone()))
             .style(Button::TransparentHover(false, Some(12.5)))
@@ -69,7 +45,7 @@ where
         .align_y(Vertical::Center)
     };
 
-    button(row![avatar, content].spacing(15))
+    button(row![user_avatar(account, 40), content].spacing(15))
         .style(Button::Border(selected, Some(15.0), 5.0))
         .width(Length::Fill)
         .height(Length::Units(70))

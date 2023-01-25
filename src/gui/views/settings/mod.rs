@@ -3,13 +3,14 @@ mod appearance_tab;
 
 pub use self::accounts_tab::AccountsMessage;
 
+use iced::widget::scrollable::Properties;
 use iced::{
     alignment::Horizontal,
     widget::{container, row, scrollable},
     Element, Length,
 };
 use iced_graphics::Renderer;
-use iced_lazy::Component;
+use iced_lazy::{lazy, Component};
 
 use crate::{
     data::{settings::Settings, user::User},
@@ -30,8 +31,9 @@ pub enum Tab {
 impl Tab {
     fn sidebar_entries() -> Vec<SidebarEntryType<Self>> {
         vec![
-            SidebarEntryType::Button(Self::Accounts, "Accounts"),
-            SidebarEntryType::Button(Self::Appearance, "Appearance"),
+            SidebarEntryType::Button(Self::Accounts, String::from("Accounts")),
+            SidebarEntryType::Spacer,
+            SidebarEntryType::Button(Self::Appearance, String::from("Appearance")),
         ]
     }
 }
@@ -122,7 +124,7 @@ where
     }
 
     fn view(&self, state: &Self::State) -> Element<'_, Self::Event, Renderer<Backend, Theme>> {
-        let sidebar = sidebar(&Tab::sidebar_entries(), Event::TabSelected);
+        let sidebar = lazy((), |_| sidebar(&Tab::sidebar_entries(), Event::TabSelected));
 
         let tab: Element<'_, Self::Event, Renderer<Backend, Theme>> = match state.active_tab {
             Tab::Accounts => accounts_tab(
@@ -142,9 +144,7 @@ where
                     .align_x(Horizontal::Center),
             )
             .height(Length::Fill)
-            .scrollbar_margin(8)
-            .scrollbar_width(5)
-            .scroller_width(5),
+            .vertical_scroll(Properties::new().width(5).scroller_width(5).margin(8)),
         )
         .width(Length::Fill)
         .height(Length::Fill);

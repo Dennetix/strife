@@ -7,24 +7,31 @@ mod views;
 
 use iced::{executor, widget::text, Application, Command, Element, Renderer, Subscription};
 use iced_native::row;
-use tracing::{error, info};
+use tracing::error;
 
 use crate::{
     api::{
         cdn_client::CdnClient,
         gateway::{Gateway, GatewayEvent},
     },
-    data::{settings::Settings, state::ConnectionState, user::User},
+    data::{
+        settings::Settings,
+        state::{ConnectionState, Message},
+        user::User,
+    },
 };
 
 use self::{
     components::guildbar::{guildbar, View},
-    message::{map_result_message, Message},
+    message::{map_result_message, AppMessage},
     theme::{
         data::{DefaultThemes, ThemeData},
         Theme,
     },
-    views::settings::{settings_view, AccountsMessage, SettingsViewMessage},
+    views::{
+        direct_messages::direct_messages_view,
+        settings::{settings_view, AccountsMessage, SettingsViewMessage},
+    },
 };
 
 const SERVICE: &str = "strife_accounts";
@@ -38,16 +45,16 @@ pub struct App {
 }
 
 impl App {
-    fn save_settings(&self) -> Command<Message> {
+    fn save_settings(&self) -> Command<AppMessage> {
         Command::perform(
             self.settings.clone().save(),
-            map_result_message(Message::SettingsSaved),
+            map_result_message(AppMessage::SettingsSaved),
         )
     }
 }
 
 impl Application for App {
-    type Message = Message;
+    type Message = AppMessage;
     type Theme = Theme;
     type Executor = executor::Default;
     type Flags = ();
@@ -61,7 +68,7 @@ impl Application for App {
                 accounts: vec![],
                 cdn_client: CdnClient::new(),
             },
-            Command::perform(Settings::load(), Message::SettingsLoaded),
+            Command::perform(Settings::load(), AppMessage::SettingsLoaded),
         )
     }
 
@@ -71,7 +78,7 @@ impl Application for App {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::SettingsLoaded(settings) => {
+            AppMessage::SettingsLoaded(settings) => {
                 self.settings = settings;
                 let accounts = self.settings.accounts.drain(..);
 
@@ -81,7 +88,7 @@ impl Application for App {
                     .map(|token| {
                         Command::perform(
                             User::from_token(token),
-                            map_result_message(|user| Message::AccountLoaded(user, None)),
+                            map_result_message(|user| AppMessage::AccountLoaded(user, None)),
                         )
                     })
                     .collect::<Vec<_>>();
@@ -95,7 +102,7 @@ impl Application for App {
 
                         commands.push(Command::perform(
                             Gateway::new(token),
-                            map_result_message(Message::Connected),
+                            map_result_message(AppMessage::GatewayConnected),
                         ));
                     } else {
                         self.connection_state = ConnectionState::Disconnected;
@@ -105,12 +112,12 @@ impl Application for App {
 
                 return Command::batch(commands);
             }
-            Message::SettingsSaved(res) => {
+            AppMessage::SettingsSaved(res) => {
                 if let Err(e) = res {
                     error!("Failed to save settings, {e}");
                 }
             }
-            Message::AccountLoaded(user, token) => match user {
+            AppMessage::AccountLoaded(user, token) => match user {
                 Ok(user) => {
                     let (id, avatar) = (user.id.clone(), user.avatar.clone());
 
@@ -130,7 +137,7 @@ impl Application for App {
                                 Command::perform(
                                     self.cdn_client.clone().avatar(id.clone(), avatar, 128),
                                     map_result_message(|handle| {
-                                        Message::AccountAvatarLoaded(id, handle)
+                                        AppMessage::AccountAvatarLoaded(id, handle)
                                     }),
                                 )
                             } else {
@@ -141,7 +148,7 @@ impl Application for App {
                 }
                 Err(e) => error!("Failed to load account: {e}"),
             },
-            Message::AccountAvatarLoaded(id, handle) => {
+            AppMessage::AccountAvatarLoaded(id, handle) => {
                 if let Some(user) = self.accounts.iter_mut().find(|u| u.id == id) {
                     match handle {
                         Ok(handle) => user.avatar_handle = Some(handle),
@@ -149,9 +156,23 @@ impl Application for App {
                     }
                 }
             }
-            Message::Connected(res) => match res {
+            AppMessage::GatewayConnected(res) => match res {
                 Ok((gateway, state)) => {
-                    self.connection_state = ConnectionState::Connecetd(state, gateway)
+                    self.connection_state = ConnectionState::Connecetd(state.clone(), gateway);
+
+                    // Load user avatars
+                    return Command::batch(state.user_cache.into_iter().flat_map(|(_, user)| {
+                        if let Some(avatar) = user.avatar {
+                            Some(Command::perform(
+                                self.cdn_client.clone().avatar(user.id.clone(), avatar, 128),
+                                map_result_message(|handle| {
+                                    AppMessage::UserAvatarLoaded(user.id, handle)
+                                }),
+                            ))
+                        } else {
+                            None
+                        }
+                    }));
                 }
                 Err(e) => {
                     self.connection_state = ConnectionState::Disconnected;
@@ -159,7 +180,7 @@ impl Application for App {
                 }
             },
 
-            Message::GatewayEvent(event) => match event {
+            AppMessage::GatewayEvent(event) => match event {
                 GatewayEvent::ReconnectNeeded => {
                     if let Ok(token) =
                         keyring::Entry::new(SERVICE, &self.settings.active_account).get_password()
@@ -167,19 +188,47 @@ impl Application for App {
                         self.connection_state = ConnectionState::Connecting;
                         return Command::perform(
                             Gateway::new(token),
-                            map_result_message(Message::Connected),
+                            map_result_message(AppMessage::GatewayConnected),
                         );
                     } else {
                         self.connection_state = ConnectionState::Disconnected;
                         error!("Keyring did not contain the token of the selected account");
                     }
                 }
-                GatewayEvent::Message(msg) => info!("Message: {msg:?}"),
+                GatewayEvent::Message(msg) => {
+                    if let ConnectionState::Connecetd(state, _) = &mut self.connection_state {
+                        state.insert_message(
+                            msg.channel_id,
+                            Message::Default {
+                                user_id: msg.author.id,
+                                content: msg.content,
+                            },
+                        )
+                    }
+                }
             },
 
-            Message::ViewSelect(view) => self.active_view = view,
+            AppMessage::UserAvatarLoaded(id, handle) => match handle {
+                Ok(handle) => {
+                    if let ConnectionState::Connecetd(state, _) = &mut self.connection_state {
+                        state
+                            .user_cache
+                            .entry(id)
+                            .and_modify(|u| u.avatar_handle = Some(handle));
+                    }
+                }
+                Err(e) => error!("Failed to load user avatar: {e}"),
+            },
 
-            Message::SettingsViewMessage(message) => match message {
+            AppMessage::ViewSelect(view) => {
+                if let ConnectionState::Connecetd(_, _) = self.connection_state {
+                    self.active_view = view;
+                } else {
+                    self.active_view = View::Settings;
+                }
+            }
+
+            AppMessage::SettingsViewMessage(message) => match message {
                 SettingsViewMessage::SettingsChanged(settings) => {
                     self.settings = settings;
                     return self.save_settings();
@@ -188,28 +237,32 @@ impl Application for App {
                     AccountsMessage::AccountAdded(token) => {
                         return Command::perform(
                             User::from_token(token.clone()),
-                            map_result_message(|user| Message::AccountLoaded(user, Some(token))),
+                            map_result_message(|user| AppMessage::AccountLoaded(user, Some(token))),
                         )
                     }
                     AccountsMessage::AccountSelected(id) => {
-                        if let ConnectionState::Connecetd(_, gateway) = &mut self.connection_state {
-                            gateway.close();
-                        }
+                        if id != self.settings.active_account {
+                            if let ConnectionState::Connecetd(_, gateway) =
+                                &mut self.connection_state
+                            {
+                                gateway.close();
+                            }
 
-                        if let Ok(token) = keyring::Entry::new(SERVICE, &id).get_password() {
-                            self.settings.active_account = id;
-                            self.connection_state = ConnectionState::Connecting;
+                            if let Ok(token) = keyring::Entry::new(SERVICE, &id).get_password() {
+                                self.settings.active_account = id;
+                                self.connection_state = ConnectionState::Connecting;
 
-                            return Command::batch([
-                                self.save_settings(),
-                                Command::perform(
-                                    Gateway::new(token),
-                                    map_result_message(Message::Connected),
-                                ),
-                            ]);
-                        } else {
-                            self.connection_state = ConnectionState::Disconnected;
-                            error!("Keyring did not contain the token of the selected account");
+                                return Command::batch([
+                                    self.save_settings(),
+                                    Command::perform(
+                                        Gateway::new(token),
+                                        map_result_message(AppMessage::GatewayConnected),
+                                    ),
+                                ]);
+                            } else {
+                                self.connection_state = ConnectionState::Disconnected;
+                                error!("Keyring did not contain the token of the selected account");
+                            }
                         }
                     }
                     AccountsMessage::AccountRemoved(id) => {
@@ -229,6 +282,7 @@ impl Application for App {
                     }
                 },
             },
+            AppMessage::DirectMessagesViewMessage(_) => {}
         }
 
         Command::none()
@@ -236,7 +290,7 @@ impl Application for App {
 
     fn subscription(&self) -> Subscription<Self::Message> {
         if let ConnectionState::Connecetd(_, gateway) = &self.connection_state {
-            gateway.subscribe().map(Message::GatewayEvent)
+            gateway.subscribe().map(AppMessage::GatewayEvent)
         } else {
             Subscription::none()
         }
@@ -244,14 +298,23 @@ impl Application for App {
 
     fn view(&self) -> Element<'_, Self::Message, Renderer<Self::Theme>> {
         let view: Element<'_, Self::Message, Renderer<Self::Theme>> = match self.active_view {
-            View::PrivateChannels => text("Private Channels").into(),
-            View::Settings => {
-                settings_view(&self.settings, &self.accounts, Message::SettingsViewMessage).into()
+            View::DirectMessages => {
+                if let ConnectionState::Connecetd(state, _) = &self.connection_state {
+                    direct_messages_view(state, AppMessage::DirectMessagesViewMessage).into()
+                } else {
+                    text("This should never be seen").into()
+                }
             }
+            View::Settings => settings_view(
+                &self.settings,
+                &self.accounts,
+                AppMessage::SettingsViewMessage,
+            )
+            .into(),
         };
 
         row![
-            guildbar(self.active_view.clone(), Message::ViewSelect),
+            guildbar(self.active_view.clone(), AppMessage::ViewSelect),
             view
         ]
         .into()

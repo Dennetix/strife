@@ -29,11 +29,11 @@ impl application::StyleSheet for Theme {
     }
 }
 
-#[derive(Default)]
 pub enum Button {
-    #[default]
-    Primary,
-    Secondary,
+    /// border radius
+    Primary(Option<f32>),
+    /// border radius
+    Secondary(Option<f32>),
 
     /// selected, border radius
     TransparentHover(bool, Option<f32>),
@@ -53,11 +53,17 @@ impl button::StyleSheet for Theme {
         };
 
         match style {
-            Button::Primary => {
+            Button::Primary(border_radius) => {
+                if let Some(border_radius) = border_radius {
+                    appearance.border_radius = *border_radius;
+                }
                 appearance.background =
                     Some(Background::Color(Color::from(self.data.theme.primary)));
             }
-            Button::Secondary => {
+            Button::Secondary(border_radius) => {
+                if let Some(border_radius) = border_radius {
+                    appearance.border_radius = *border_radius;
+                }
                 appearance.background =
                     Some(Background::Color(Color::from(self.data.theme.secondary)));
             }
@@ -95,12 +101,18 @@ impl button::StyleSheet for Theme {
         };
 
         match style {
-            Button::Primary => {
+            Button::Primary(border_radius) => {
+                if let Some(border_radius) = border_radius {
+                    appearance.border_radius = *border_radius;
+                }
                 appearance.background = Some(Background::Color(Color::from(
                     self.data.theme.button.primary_hovered,
                 )));
             }
-            Button::Secondary => {
+            Button::Secondary(border_radius) => {
+                if let Some(border_radius) = border_radius {
+                    appearance.border_radius = *border_radius;
+                }
                 appearance.background = Some(Background::Color(Color::from(
                     self.data.theme.button.secondary_hovered,
                 )));
@@ -140,12 +152,18 @@ impl button::StyleSheet for Theme {
         };
 
         match style {
-            Button::Primary => {
+            Button::Primary(border_radius) => {
+                if let Some(border_radius) = border_radius {
+                    appearance.border_radius = *border_radius;
+                }
                 appearance.background = Some(Background::Color(Color::from(
                     self.data.theme.button.primary_pressed,
                 )));
             }
-            Button::Secondary => {
+            Button::Secondary(border_radius) => {
+                if let Some(border_radius) = border_radius {
+                    appearance.border_radius = *border_radius;
+                }
                 appearance.background = Some(Background::Color(Color::from(
                     self.data.theme.button.secondary_pressed,
                 )));
@@ -182,6 +200,12 @@ impl button::StyleSheet for Theme {
             ))),
             ..Default::default()
         }
+    }
+}
+
+impl Default for Button {
+    fn default() -> Self {
+        Self::Primary(None)
     }
 }
 

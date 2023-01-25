@@ -114,7 +114,10 @@ impl Gateway {
 
         let state = ready_receiver.await??;
 
-        info!("Gateway ready. Logged in as {}", state.user.username);
+        info!(
+            "Gateway ready. Logged in as {}",
+            state.current_user.username
+        );
 
         Ok((this, state))
     }
@@ -329,17 +332,17 @@ impl Gateway {
 
                 self.inner
                     .resume_url
-                    .set(data.resume_gateway_url)
+                    .set(data.resume_gateway_url.clone())
                     .map_err(|_| anyhow!("Could not set resume_gateway_url"))?;
                 self.inner
                     .session_id
-                    .set(data.session_id)
+                    .set(data.session_id.clone())
                     .map_err(|_| anyhow!("Could not set session_id"))?;
 
                 self.set_state(GatewayState::Open).await;
 
                 if let Some(sender) = self.inner.ready_sender.lock().await.take() {
-                    if let Err(_) = sender.send(Ok(State { user: data.user })) {
+                    if let Err(_) = sender.send(Ok(data.into())) {
                         error!("Failed to send ready oneshot");
                     }
                 }

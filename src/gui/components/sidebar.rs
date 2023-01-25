@@ -1,3 +1,4 @@
+use iced::widget::scrollable::Properties;
 use iced::{
     alignment::Vertical,
     widget::{button, container, horizontal_rule, scrollable, text, Column},
@@ -5,12 +6,17 @@ use iced::{
 };
 use iced_graphics::Renderer;
 use iced_lazy::Component;
+use iced_native::row;
 
+use crate::data::user::User;
 use crate::gui::theme::{Button, Container, Theme};
+
+use super::user_avatar;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SidebarEntryType<T: Clone + PartialEq> {
-    Button(T, &'static str),
+    Button(T, String),
+    User(User),
     Spacer,
 }
 
@@ -20,23 +26,30 @@ fn sidebar_entry<'a, T, Backend>(
 ) -> Element<'a, SidebarEntryType<T>, Renderer<Backend, Theme>>
 where
     T: Clone + PartialEq + 'a,
-    Backend: iced_graphics::Backend + iced_graphics::backend::Text + 'static,
+    Backend: iced_graphics::Backend
+        + iced_graphics::backend::Text
+        + iced_graphics::backend::Image
+        + iced_graphics::backend::Svg
+        + 'static,
 {
     let content = match entry_type {
-        SidebarEntryType::Button(_, label) => text(label),
+        SidebarEntryType::Button(_, label) => container(text(label))
+            .height(Length::Units(20))
+            .align_y(Vertical::Center),
+        SidebarEntryType::User(user) => {
+            container(row![user_avatar(user, 25), text(user.username.clone())].spacing(10))
+                .height(Length::Units(25))
+                .align_y(Vertical::Center)
+        }
         SidebarEntryType::Spacer => return horizontal_rule(15).into(),
     };
 
-    button(
-        container(content)
-            .height(Length::Units(20))
-            .align_y(Vertical::Center),
-    )
-    .style(Button::TransparentHover(selected, Some(5.0)))
-    .width(Length::Fill)
-    .padding(10)
-    .on_press(entry_type.clone())
-    .into()
+    button(content)
+        .style(Button::TransparentHover(selected, Some(5.0)))
+        .width(Length::Fill)
+        .padding(10)
+        .on_press(entry_type.clone())
+        .into()
 }
 
 pub fn sidebar<T: Clone + PartialEq, Message>(
@@ -76,7 +89,11 @@ impl<T: Clone + PartialEq, Message> Sidebar<T, Message> {
 impl<T, Message, Backend> Component<Message, Renderer<Backend, Theme>> for Sidebar<T, Message>
 where
     T: Clone + PartialEq,
-    Backend: iced_graphics::Backend + iced_graphics::backend::Text + 'static,
+    Backend: iced_graphics::Backend
+        + iced_graphics::backend::Text
+        + iced_graphics::backend::Image
+        + iced_graphics::backend::Svg
+        + 'static,
 {
     type State = State<T>;
     type Event = SidebarEntryType<T>;
@@ -110,9 +127,7 @@ where
                 .spacing(5)
                 .padding([15, 13, 15, 10]),
         )
-        .scrollbar_margin(5)
-        .scrollbar_width(5)
-        .scroller_width(5);
+        .vertical_scroll(Properties::new().width(5).scroller_width(5).margin(5));
 
         container(scrollable)
             .style(Container::BackgroundStrong1(0.0))
@@ -127,7 +142,11 @@ impl<'a, T, Message, Backend> From<Sidebar<T, Message>>
 where
     T: Clone + PartialEq + 'static,
     Message: 'a,
-    Backend: iced_graphics::Backend + iced_graphics::backend::Text + 'static,
+    Backend: iced_graphics::Backend
+        + iced_graphics::backend::Text
+        + iced_graphics::backend::Image
+        + iced_graphics::backend::Svg
+        + 'static,
 {
     fn from(sidebar: Sidebar<T, Message>) -> Self {
         iced_lazy::component(sidebar)

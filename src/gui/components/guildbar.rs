@@ -1,3 +1,4 @@
+use iced::widget::scrollable::Properties;
 use iced::{
     alignment::Horizontal,
     widget::{button, column, container, horizontal_rule, scrollable, svg, vertical_space},
@@ -13,7 +14,7 @@ use crate::gui::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum View {
-    PrivateChannels,
+    DirectMessages,
     Settings,
 }
 
@@ -26,7 +27,7 @@ pub fn guildbar<Message>(
 
 #[derive(Debug, Clone)]
 pub enum GuildbarEvent {
-    PrivateChannelsPressed,
+    DirectMessagesPressed,
     SettingsPressed,
 }
 
@@ -53,17 +54,30 @@ where
 
     fn update(&mut self, _state: &mut Self::State, event: Self::Event) -> Option<Message> {
         match event {
-            GuildbarEvent::PrivateChannelsPressed => Some((self.on_select)(View::PrivateChannels)),
+            GuildbarEvent::DirectMessagesPressed => Some((self.on_select)(View::DirectMessages)),
             GuildbarEvent::SettingsPressed => Some((self.on_select)(View::Settings)),
         }
     }
 
     fn view(&self, _state: &Self::State) -> Element<'_, Self::Event, Renderer<Backend, Theme>> {
-        let guilds = scrollable(vertical_space(Length::Units(1000)))
-            .style(Scrollable::Weak)
-            .height(Length::Fill)
-            .scrollbar_width(5)
-            .scroller_width(5);
+        let dm_button = button(svg(icons::DM.clone()))
+            .style(Button::Primary(Some(15.0)))
+            .width(Length::Units(51))
+            .height(Length::Units(51))
+            .padding(15)
+            .on_press(GuildbarEvent::DirectMessagesPressed);
+
+        let guilds = scrollable(
+            column![
+                dm_button,
+                horizontal_rule(2).style(Rule::Width(2, 60.0)),
+                vertical_space(Length::Units(750))
+            ]
+            .spacing(10),
+        )
+        .style(Scrollable::Weak)
+        .height(Length::Fill)
+        .vertical_scroll(Properties::new().width(5).scroller_width(5));
 
         let settings_button = button(svg(icons::SETTINGS.clone()))
             .style(Button::TransparentHover(
@@ -88,7 +102,7 @@ where
         .style(Container::BackgroundStrong2(0.0))
         .width(Length::Units(75))
         .height(Length::Fill)
-        .padding(10)
+        .padding(12)
         .into()
     }
 }
