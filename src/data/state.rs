@@ -15,7 +15,7 @@ pub enum ConnectionState {
 
 #[derive(Debug, Clone)]
 pub struct State {
-    pub current_user: User,
+    pub user_id: String,
     pub relationships: Vec<Relationship>,
     pub private_channels: Vec<PrivateChannel>,
     pub user_cache: HashMap<String, User>,
@@ -24,13 +24,13 @@ pub struct State {
 
 impl State {
     pub fn new(
-        current_user: User,
+        user_id: String,
         relationships: Vec<Relationship>,
         private_channels: Vec<PrivateChannel>,
         user_cache: HashMap<String, User>,
     ) -> Self {
         State {
-            current_user,
+            user_id,
             relationships,
             private_channels,
             user_cache,
@@ -86,6 +86,7 @@ pub struct PrivateChannel {
     pub name: Option<String>,
     pub icon: Option<String>,
     pub icon_handle: Option<image::Handle>,
+    pub last_message_timestamp: u64,
 }
 
 impl PartialEq for PrivateChannel {

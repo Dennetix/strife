@@ -49,7 +49,7 @@ impl Into<State> for DispatchReady {
             .collect();
 
         // Create vector of private channels
-        let private_channels = self
+        let mut private_channels = self
             .private_channels
             .into_iter()
             .map(|c| PrivateChannel {
@@ -63,8 +63,12 @@ impl Into<State> for DispatchReady {
                 name: c.name,
                 icon: c.icon,
                 icon_handle: None,
+                last_message_timestamp: (c.last_message_id.parse().unwrap_or(0) >> 22)
+                    + 1420070400000,
             })
-            .collect();
+            .collect::<Vec<_>>();
+
+        private_channels.sort_by(|a, b| b.last_message_timestamp.cmp(&a.last_message_timestamp));
 
         // Put all known users (from relationships) into a HashMap
         let mut user_cache = self
@@ -72,6 +76,9 @@ impl Into<State> for DispatchReady {
             .into_iter()
             .map(|r| (r.user.id.clone(), r.user))
             .collect::<HashMap<String, User>>();
+
+        let user_id = self.user.id.clone();
+        user_cache.insert(self.user.id.clone(), self.user);
 
         // Update users presences
         self.presences.into_iter().for_each(|p| {
@@ -85,7 +92,7 @@ impl Into<State> for DispatchReady {
             }
         });
 
-        State::new(self.user, relationships, private_channels, user_cache)
+        State::new(user_id, relationships, private_channels, user_cache)
     }
 }
 
@@ -105,6 +112,7 @@ pub struct PrivateChannelData {
     pub name: Option<String>,
     pub icon: Option<String>,
     pub owner_id: Option<String>,
+    pub last_message_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]

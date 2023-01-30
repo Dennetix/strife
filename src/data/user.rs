@@ -1,7 +1,7 @@
 use anyhow::Result;
 use iced_native::image;
 use serde::{
-    de::{self, DeserializeOwned},
+    de::{self},
     Deserialize, Deserializer,
 };
 

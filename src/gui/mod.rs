@@ -64,7 +64,7 @@ impl Application for App {
             Self {
                 connection_state: ConnectionState::Disconnected,
                 settings: Settings::default(),
-                active_view: View::Settings,
+                active_view: View::DirectMessages,
                 accounts: vec![],
                 cdn_client: CdnClient::new(),
             },
@@ -108,6 +108,8 @@ impl Application for App {
                         self.connection_state = ConnectionState::Disconnected;
                         error!("Keyring did not contain the token of the selected account");
                     }
+                } else {
+                    self.active_view = View::Settings;
                 }
 
                 return Command::batch(commands);
@@ -344,7 +346,7 @@ impl Application for App {
                 if let ConnectionState::Connecetd(state, _) = &self.connection_state {
                     private_channels_view(state, AppMessage::DirectMessagesViewMessage).into()
                 } else {
-                    text("This should never be seen").into()
+                    text("Loading...").into()
                 }
             }
             View::Settings => settings_view(

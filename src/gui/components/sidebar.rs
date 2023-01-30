@@ -8,7 +8,7 @@ use iced_graphics::Renderer;
 use iced_lazy::Component;
 use iced_native::row;
 
-use crate::data::state::PrivateChannel;
+use crate::data::state::{PrivateChannel, PrivateChannelKind};
 use crate::data::user::User;
 use crate::gui::theme::{Button, Container, Theme};
 
@@ -17,8 +17,7 @@ use super::images::{channel_icon, user_avatar};
 #[derive(Debug, Clone, PartialEq)]
 pub enum SidebarEntryType<T: Clone + PartialEq> {
     Button(T, String),
-    User(User),
-    Group(PrivateChannel),
+    PrivateChannel(PrivateChannel, Option<User>),
     Spacer,
 }
 
@@ -38,24 +37,27 @@ where
         SidebarEntryType::Button(_, label) => container(text(label))
             .height(Length::Units(20))
             .align_y(Vertical::Center),
-        SidebarEntryType::User(user) => container(
-            row![
-                user_avatar(user, 25),
-                text(format!("{:?} {}", user.presence, user.username))
-            ]
-            .spacing(10),
-        )
-        .height(Length::Units(25))
-        .align_y(Vertical::Center),
-        SidebarEntryType::Group(channel) => container(
-            row![
-                channel_icon(channel.icon_handle.clone(), 25),
-                text(if let Some(name) = &channel.name {
-                    name.clone()
-                } else {
-                    format!("{} Members", channel.recipients.len())
-                })
-            ]
+        SidebarEntryType::PrivateChannel(channel, user) => container(
+            match channel.kind {
+                PrivateChannelKind::DirectMessage => {
+                    if let Some(user) = user {
+                        row![
+                            user_avatar(user, 25),
+                            text(format!("{:?} {}", user.presence, user.username))
+                        ]
+                    } else {
+                        row![text("Error finding user")]
+                    }
+                }
+                PrivateChannelKind::Group => row![
+                    channel_icon(channel.icon_handle.clone(), 25),
+                    text(if let Some(name) = &channel.name {
+                        name.clone()
+                    } else {
+                        format!("{} Members", channel.recipients.len() + 1)
+                    })
+                ],
+            }
             .spacing(10),
         )
         .height(Length::Units(25))

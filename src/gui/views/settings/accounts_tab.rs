@@ -136,7 +136,7 @@ where
     }
 
     fn view(&self, state: &Self::State) -> Element<'_, Self::Event, Renderer<Backend, Theme>> {
-        let current_account: Element<'_, _, _> =
+        let current_account: Element<_, _> =
             if let Some(account) = self.accounts.iter().find(|a| a.id == self.active_account) {
                 column![text("Current Account"), account_button(account, true)]
                     .spacing(15)
@@ -145,7 +145,7 @@ where
                 empty().into()
             };
 
-        let accounts: Element<'_, _, _> = {
+        let accounts: Element<_, _> = {
             let accounts = self
                 .accounts
                 .iter()

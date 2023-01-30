@@ -114,10 +114,11 @@ impl Gateway {
 
         let state = ready_receiver.await??;
 
-        info!(
-            "Gateway ready. Logged in as {}",
-            state.current_user.username
-        );
+        if let Some(user) = state.user_cache.get(&state.user_id) {
+            info!("Gateway ready. Logged in as {}", user.username);
+        } else {
+            error!("Current user not in user cache");
+        }
 
         Ok((this, state))
     }

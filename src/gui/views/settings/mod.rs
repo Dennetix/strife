@@ -32,7 +32,6 @@ impl Tab {
     fn sidebar_entries() -> Vec<SidebarEntryType<Self>> {
         vec![
             SidebarEntryType::Button(Self::Accounts, String::from("Accounts")),
-            SidebarEntryType::Spacer,
             SidebarEntryType::Button(Self::Appearance, String::from("Appearance")),
         ]
     }
@@ -126,7 +125,7 @@ where
     fn view(&self, state: &Self::State) -> Element<'_, Self::Event, Renderer<Backend, Theme>> {
         let sidebar = lazy((), |_| sidebar(&Tab::sidebar_entries(), Event::TabSelected));
 
-        let tab: Element<'_, Self::Event, Renderer<Backend, Theme>> = match state.active_tab {
+        let tab: Element<_, _> = match state.active_tab {
             Tab::Accounts => accounts_tab(
                 self.accounts,
                 self.settings.active_account.clone(),

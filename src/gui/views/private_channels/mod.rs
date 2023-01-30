@@ -1,12 +1,15 @@
-use iced::Element;
+use iced::{widget::text, Element};
 use iced_graphics::Renderer;
 use iced_lazy::Component;
 use iced_native::row;
 
 use crate::{
-    data::state::{PrivateChannelKind, State},
+    data::state::{PrivateChannel, PrivateChannelKind, State},
     gui::{
-        components::sidebar::{sidebar, SidebarEntryType},
+        components::{
+            sidebar::{sidebar, SidebarEntryType},
+            text_chat::{text_chat, TextChatMessage},
+        },
         theme::Theme,
     },
 };
@@ -18,6 +21,13 @@ pub fn private_channels_view<'a, Message>(
     PrivateChannelsView::new(state, on_message)
 }
 
+#[derive(Default, Debug, Clone)]
+pub enum Tab {
+    #[default]
+    Friends,
+    Channel(String),
+}
+
 #[derive(Debug, Clone)]
 pub enum PrivateChannelsViewMessage {
     Default,
@@ -25,12 +35,13 @@ pub enum PrivateChannelsViewMessage {
 
 #[derive(Default)]
 pub struct PrivateChannelsState {
-    active_channel: String,
+    active_tab: Tab,
 }
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    ChannelSelected(SidebarEntryType<String>),
+    TabSelected(SidebarEntryType<()>),
+    TextChatMessage(TextChatMessage),
 }
 
 pub struct PrivateChannelsView<'a, Message> {
@@ -64,42 +75,56 @@ where
 
     fn update(&mut self, state: &mut Self::State, event: Self::Event) -> Option<Message> {
         match event {
-            Event::ChannelSelected(SidebarEntryType::Button(channel, _)) => {
-                state.active_channel = channel;
-                None
-            }
-            _ => None,
+            Event::TabSelected(entry_type) => match entry_type {
+                SidebarEntryType::PrivateChannel(PrivateChannel { id, .. }, _) => {
+                    state.active_tab = Tab::Channel(id)
+                }
+                _ => state.active_tab = Tab::Friends,
+            },
+            Event::TextChatMessage(_) => {}
         }
+        None
     }
 
     fn view(
         &self,
-        _state: &Self::State,
+        state: &Self::State,
     ) -> iced_native::Element<'_, Self::Event, Renderer<Backend, Theme>> {
         let sidebar = sidebar(
-            &self
-                .state
-                .private_channels
-                .iter()
-                .flat_map(|c| match c.kind {
-                    PrivateChannelKind::DirectMessage => {
-                        if let Some(user) = self
-                            .state
-                            .user_cache
-                            .get(c.recipients.first().unwrap_or(&String::from("")))
-                        {
-                            Some(SidebarEntryType::User(user.clone()))
-                        } else {
-                            None
+            &[
+                vec![
+                    SidebarEntryType::Button((), String::from("Friends")),
+                    SidebarEntryType::Spacer,
+                ],
+                self.state
+                    .private_channels
+                    .iter()
+                    .flat_map(|c| match c.kind {
+                        PrivateChannelKind::DirectMessage => {
+                            Some(SidebarEntryType::PrivateChannel(
+                                c.clone(),
+                                self.state
+                                    .user_cache
+                                    .get(c.recipients.first().unwrap_or(&String::from("")))
+                                    .cloned(),
+                            ))
                         }
-                    }
-                    PrivateChannelKind::Group => Some(SidebarEntryType::Group(c.clone())),
-                })
-                .collect::<Vec<_>>(),
-            Event::ChannelSelected,
+                        PrivateChannelKind::Group => {
+                            Some(SidebarEntryType::PrivateChannel(c.clone(), None))
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            ]
+            .concat(),
+            Event::TabSelected,
         );
 
-        row![sidebar].into()
+        let content: Element<_, _> = match &state.active_tab {
+            Tab::Friends => text("Friends...").into(),
+            Tab::Channel(id) => text_chat(id.clone(), &self.state, Event::TextChatMessage).into(),
+        };
+
+        row![sidebar, content].into()
     }
 }
 
